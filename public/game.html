@@ -379,7 +379,7 @@ function drawBoss(b,t){
   ctx.strokeStyle='#000'; ctx.lineWidth=2;
   [0.33,0.66].forEach(p=>{ctx.beginPath(); ctx.moveTo(barX+barW*p,barY); ctx.lineTo(barX+barW*p,barY+barH); ctx.stroke();});
   ctx.fillStyle=C.red; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
-  ctx.fillText('BROKEN ELEVATOR — PHASE '+b.phase, BASE_W/2, barY-4);
+  ctx.fillText('SERVICE ELEVATOR — PHASE '+b.phase, BASE_W/2, barY-4);
 }
 
 /* ============================== SHIELDS ============================= */
@@ -1662,7 +1662,7 @@ function drawVictory(){
 }
 
 function drawWaveIntro(){
-  const names=['','ENGINE ATTACK','TRANSMISSION SWARM','OIL BARREL DROP','WRENCH BRIGADE','ZERO FAULT INVASION','BROKEN ELEVATOR'];
+  const names=['','ENGINE ATTACK','TRANSMISSION SWARM','OIL BARREL DROP','WRENCH BRIGADE','ZERO FAULT INVASION','SERVICE ELEVATOR'];
   const t=performance.now()*0.001;
   const pulse=Math.sin(t*5)*0.15+0.85;
   // Slide-in: box drops from above during the first 0.5s of the 2s intro timer
@@ -1687,7 +1687,7 @@ function drawWaveIntro(){
   if(wave===6 && overdrive===0){
     ctx.fillStyle=Math.floor(t*3)%2===0?C.red:'#800';
     ctx.font='bold 14px Courier New';
-    ctx.fillText('!!! BOSS INCOMING !!!',BASE_W/2,BASE_H/2+18);
+    ctx.fillText('!!! FINAL WAVE INCOMING !!!',BASE_W/2,BASE_H/2+18);
   } else {
     ctx.fillStyle=C.limeDim; ctx.font='11px Courier New';
     ctx.fillText('GET READY...',BASE_W/2,BASE_H/2+22);
