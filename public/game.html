@@ -119,11 +119,12 @@ const C={ bg:'#000', lime:'#A6FF00', limeDim:'#4A7300', limeGlow:'#7CFF00', whit
   gray:'#2A2A2A', orange:'#FFB000', red:'#FF3030', yellow:'#FFFF00', blue:'#00BFFF', cyan:'#00FFFF' };
 
 /* ============================== STATE =============================== */
-const STATE={TITLE:0,PLAYING:1,PAUSED:2,GAMEOVER:3,VICTORY:4,WAVE_INTRO:5,CRASH_WARNING:6};
+const STATE={TITLE:0,PLAYING:1,PAUSED:2,GAME_OVER:3,GAMEOVER:3,VICTORY:4,WAVE_INTRO:5,CRASH_WARNING:6};
 let gs=STATE.TITLE;
 let score=0, displayScore=0, fleetHP=3, wave=1;
 const TOTAL_WAVES=6;
 let crashWarningTimer=0, crashWarningReason='COLLISION';
+let gameOverRevealTimer=0, gameOverReason='BUS DESTROYED';
 let damageWarningTimer=0, damageWarningText='FLEET DAMAGE';
 let bossActive=false;
 let combo=0, comboTimer=0, longestCombo=0;
@@ -171,7 +172,7 @@ window.addEventListener('keydown',e=>{
   if(e.code==='KeyR'){restartGame();}
   if(e.code==='Enter'||e.code==='Space'){
     if(gs===STATE.TITLE) startGame();
-    else if(gs===STATE.GAMEOVER||gs===STATE.VICTORY||gs===STATE.CRASH_WARNING) restartGame();
+    else if(isRestartState()) restartGame();
     else if(gs===STATE.WAVE_INTRO) beginWave();
   }
 });
@@ -187,7 +188,7 @@ canvas.addEventListener('mousemove',e=>{
 canvas.addEventListener('mousedown',e=>{
   mousePressed=true; shootHeld=true; lastInput='mouse'; mouseMovedAt=performance.now();
   if(gs===STATE.TITLE) startGame();
-  else if(gs===STATE.GAMEOVER||gs===STATE.VICTORY||gs===STATE.CRASH_WARNING) restartGame();
+  else if(isRestartState()) restartGame();
   else if(gs===STATE.WAVE_INTRO) beginWave();
   else tryShoot();
 });
@@ -205,7 +206,7 @@ let autoFire=false;
 
 function touchHandle(){
   if(gs===STATE.TITLE) startGame();
-  else if(gs===STATE.GAMEOVER||gs===STATE.VICTORY||gs===STATE.CRASH_WARNING) restartGame();
+  else if(isRestartState()) restartGame();
   else if(gs===STATE.WAVE_INTRO) beginWave();
 }
 joystickArea.addEventListener('touchstart',e=>{e.preventDefault(); lastInput='touch'; joystickActive=true; joystickStartX=e.touches[0].clientX; touchHandle();},{passive:false});
@@ -256,17 +257,17 @@ function drawBus(x,y,alpha=1,tilt=0,recoil=0){
   ctx.fillRect(HW-10,-HH+12,8,8); ctx.shadowBlur=0;
   ctx.fillStyle=C.red; ctx.fillRect(-HW+2,-HH+12,6,8);
   const wheelY=HH+2, spin=(player.x*0.08)%(Math.PI*2);
-  [-28,-8,8,28].forEach(wx=>{
+  [-27,27].forEach(wx=>{
     ctx.fillStyle='#1a1a1a'; ctx.strokeStyle='#444'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.arc(wx,wheelY,9,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(wx,wheelY,10,0,Math.PI*2); ctx.fill(); ctx.stroke();
     ctx.strokeStyle=C.lime; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.arc(wx,wheelY,6,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(wx,wheelY,7,0,Math.PI*2); ctx.stroke();
     for(let b=0;b<5;b++){
       const ba=b*Math.PI*2/5+spin;
       ctx.fillStyle=C.lime;
-      ctx.beginPath(); ctx.arc(wx+Math.cos(ba)*3.5,wheelY+Math.sin(ba)*3.5,1,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(wx+Math.cos(ba)*4,wheelY+Math.sin(ba)*4,1.1,0,Math.PI*2); ctx.fill();
     }
-    ctx.fillStyle=C.lime; ctx.beginPath(); ctx.arc(wx,wheelY,2,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=C.lime; ctx.beginPath(); ctx.arc(wx,wheelY,2.2,0,Math.PI*2); ctx.fill();
   });
   // cannon
   ctx.fillStyle='#1a2e00'; ctx.strokeStyle=C.lime; ctx.lineWidth=2;
@@ -477,7 +478,7 @@ let waveIntroTimer=0;
 function startGame(){
   getAudio();
   score=0; displayScore=0; fleetHP=4; wave=1; combo=0; comboTimer=0; longestCombo=0; scorePopups=[];
-  overdrive=0; crashWarningTimer=0; crashWarningReason='COLLISION'; damageWarningTimer=0; damageWarningText='FLEET DAMAGE';
+  overdrive=0; crashWarningTimer=0; crashWarningReason='COLLISION'; gameOverRevealTimer=0; gameOverReason='BUS DESTROYED'; damageWarningTimer=0; damageWarningText='FLEET DAMAGE';
   player.x=BASE_W/2; player.prevX=BASE_W/2; player.tilt=0; player.recoil=0; player.alive=true;
   player.shield=player.spread=player.turbo=player.rapid=false;
   player.powerType=null; player.invincible=0; player.muzzleFlash=0;
@@ -488,22 +489,35 @@ function startGame(){
   gs=STATE.WAVE_INTRO; waveIntroTimer=2.0;
 }
 function restartGame(){ startGame(); }
+function isRestartState(state=gs){
+  return state===STATE.GAME_OVER || state===STATE.VICTORY || state===STATE.CRASH_WARNING;
+}
 function warnPlayerHit(text='FLEET DAMAGE'){
   damageWarningText=text;
   damageWarningTimer=1.8;
   bigCallout(text, C.red);
 }
-function triggerCrashRestart(reason='COLLISION'){
-  if(gs===STATE.CRASH_WARNING) return;
-  crashWarningReason=reason;
-  crashWarningTimer=2.4;
-  player.alive=false;
-  player.invincible=0;
+function triggerGameOver(reason='BUS DESTROYED'){
+  if(gs===STATE.GAME_OVER) return;
+  gameOverReason=reason;
+  gameOverRevealTimer=1.15;
+  fleetHP=0;
+  spawnExplosion(player.x,player.y,C.red,46);
+  spawnFlash(player.x,player.y,46);
+  spawnExplosion(player.x,player.y,C.orange,22);
+  shake(14);
+  sndPlayerHit();
+  sndGameOver();
+  player.invincible=999;
   shootHeld=false;
   enemyBullets=[];
+  playerBullets=[];
+  clearPowerup();
   saveHi();
-  sndGameOver();
-  gs=STATE.CRASH_WARNING;
+  gs=STATE.GAME_OVER;
+}
+function triggerCrashRestart(reason='COLLISION'){
+  triggerGameOver(reason);
 }
 function beginWave(){
   gs=STATE.PLAYING;
@@ -629,12 +643,21 @@ function applyPowerup(type){
     enemyBullets=[];
     enemies.forEach(e=>{if(e.alive){e.deathFlash=0.15;}});
     setTimeout(()=>{
+      if(gs!==STATE.PLAYING) return;
       enemies.forEach(e=>{
         if(!e.alive) return;
         e.alive=false; spawnFlash(e.x,e.y,18); spawnExplosion(e.x,e.y,C.lime,10);
         score+=getPoints(e.type); stats.kills++;
       });
-      if(bossActive&&boss){ boss.hp-=15; boss.hitFlash=1; }
+      if(bossActive&&boss){
+        boss.hp-=15; boss.hitFlash=1;
+        if(boss.hp<=0) bossDefeatSequence();
+      }
+      if(!bossActive && enemies.every(e=>!e.alive)){
+        setTimeout(()=>{
+          if(gs===STATE.PLAYING && !bossActive && enemies.every(e=>!e.alive)) nextWave();
+        },1200);
+      }
       shake(10);
     },150);
     return;
@@ -679,6 +702,16 @@ function rectOverlap(ax,ay,aw,ah,bx,by,bw,bh){
 /* ============================== UPDATE ============================== */
 let lastTime=0;
 let starScroll1=0, starScroll2=0;
+function updateNonGameplayEffects(dt){
+  exhausts=exhausts.filter(p=>{p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; return p.life>0;});
+  scorePopups=scorePopups.filter(p=>{ p.y+=p.vy*dt; p.life-=dt; return p.life>0; });
+  particles=particles.filter(p=>{
+    if(p.type==='flash'){ p.size += 80*dt; p.life-=dt; return p.life>0; }
+    p.x+=p.vx*dt; p.y+=p.vy*dt;
+    if(p.type==='spark') p.vy+=90*dt;
+    p.life-=dt; return p.life>0;
+  });
+}
 function update(dt){
   tickMusic(dt);
   starScroll1 += 8*dt; starScroll2 += 22*dt;
@@ -706,6 +739,18 @@ function update(dt){
   if(gs===STATE.CRASH_WARNING){
     crashWarningTimer-=dt;
     if(crashWarningTimer<=0) startGame();
+    return;
+  }
+  if(gs===STATE.GAME_OVER){
+    if(displayScore<score){ displayScore += Math.max(1, Math.ceil((score-displayScore)*dt*8)); if(displayScore>score) displayScore=score; }
+    if(shakeAmt>0){ shakeAmt*=0.78; shakeX=(Math.random()-0.5)*shakeAmt*8; shakeY=(Math.random()-0.5)*shakeAmt*8; if(shakeAmt<0.3){shakeAmt=0;shakeX=0;shakeY=0;} }
+    updateNonGameplayEffects(dt);
+    if(gameOverRevealTimer>0){
+      gameOverRevealTimer=Math.max(0,gameOverRevealTimer-dt);
+      if(gameOverRevealTimer===0){
+        player.alive=false;
+      }
+    }
     return;
   }
   if(gs===STATE.WAVE_INTRO){ waveIntroTimer-=dt; if(waveIntroTimer<=0) beginWave(); return; }
@@ -763,11 +808,7 @@ function update(dt){
     }
   }
 
-  // Exhausts
-  exhausts=exhausts.filter(p=>{p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; return p.life>0;});
-
-  // Score popups
-  scorePopups=scorePopups.filter(p=>{ p.y+=p.vy*dt; p.life-=dt; return p.life>0; });
+  updateNonGameplayEffects(dt);
 
   // Player bullets
   playerBullets=playerBullets.filter(b=>{
@@ -861,7 +902,7 @@ function update(dt){
         if(e===bot && Math.random()<0.65){
           e.telegraph = 0.25;
           setTimeout(()=>{
-            if(!e.alive) return;
+            if(gs!==STATE.PLAYING || !e.alive) return;
             let vx=0, vy=190 + wave*8 + overdrive*20;
             if(e.type==='wrench') vx=(Math.random()-0.5)*90;
             if(e.type==='zero') vy+=50;
@@ -890,7 +931,7 @@ function update(dt){
           e.diveEnd   = {x: targetX, y: BASE_H+40};
           // shoot mid-dive
           setTimeout(()=>{
-            if(e.alive && e.diving){
+            if(gs===STATE.PLAYING && player.alive && e.alive && e.diving){
               const dx=player.x-e.x, dy=player.y-e.y, d=Math.hypot(dx,dy)||1;
               enemyBullets.push({x:e.x,y:e.y+10,vx:dx/d*220,vy:dy/d*220,type:'dive'});
             }
@@ -940,7 +981,11 @@ function update(dt){
         else if(combo===20) bigCallout('FULL SERVICE!', C.red);
         if(combo>=3) sndCombo(combo);
         if(combo>0 && combo%10===0) spawnPowerup(e.x,e.y,true);
-        if(enemies.filter(en=>en.alive).length===0) setTimeout(()=>nextWave(),1200);
+        if(enemies.filter(en=>en.alive).length===0){
+          setTimeout(()=>{
+            if(gs===STATE.PLAYING && !bossActive && enemies.filter(en=>en.alive).length===0) nextWave();
+          },1200);
+        }
         break;
       }
     }
@@ -1057,7 +1102,7 @@ function update(dt){
           wp.alive=false; boss.hp-=12; boss.hitFlash=1; hit=true; stats.hits++;
           sndEnemyHit(); spawnExplosion(wx,wy,C.red,14); shake(3);
           spawnScorePopup(wx,wy-20,50); score+=50;
-          setTimeout(()=>{ if(boss&&boss.hp>0) wp.alive=true; },3500);
+          setTimeout(()=>{ if(gs===STATE.PLAYING && boss&&boss.hp>0) wp.alive=true; },3500);
         }
       });
       if(!hit&&circleRect(pb.x,pb.y,6,boss.x-70,boss.y-38,140,76)){
@@ -1097,13 +1142,6 @@ function update(dt){
     return true;
   });
 
-  // Particles
-  particles=particles.filter(p=>{
-    if(p.type==='flash'){ p.size += 80*dt; p.life-=dt; return p.life>0; }
-    p.x+=p.vx*dt; p.y+=p.vy*dt;
-    if(p.type==='spark') p.vy+=90*dt;
-    p.life-=dt; return p.life>0;
-  });
 }
 
 function bossDefeatSequence(){
@@ -1121,7 +1159,7 @@ function bossDefeatSequence(){
   }
   score+=1500;
   bossActive=false; boss=null;
-  setTimeout(()=>nextWave(), 1800);
+  setTimeout(()=>{ if(gs===STATE.PLAYING) nextWave(); }, 1800);
 }
 
 function getPoints(type){ return {engine:10,transmission:20,oil:20,wrench:30,zero:40}[type]||10; }
@@ -1506,8 +1544,10 @@ function drawGameOver(){
   ctx.strokeRect(BASE_W/2-220,BASE_H/2-150,440,300);
   ctx.fillStyle=C.red; ctx.shadowBlur=24; ctx.shadowColor=C.red;
   ctx.font='bold 42px Courier New'; ctx.textAlign='center';
-  ctx.fillText('GARAGE DOWN',BASE_W/2,BASE_H/2-94);
+  ctx.fillText('GAME OVER',BASE_W/2,BASE_H/2-94);
   ctx.shadowBlur=0;
+  ctx.fillStyle=C.yellow; ctx.font='bold 12px Courier New';
+  ctx.fillText(gameOverReason, BASE_W/2, BASE_H/2-70);
   ctx.fillStyle=C.white; ctx.font='bold 22px Courier New';
   ctx.fillText('SCORE  '+score, BASE_W/2, BASE_H/2-50);
   if(score===hiScore && score>0){
@@ -1531,6 +1571,28 @@ function drawGameOver(){
   ctx.textAlign='center';
   ctx.fillStyle=C.lime; ctx.font='13px Courier New';
   ctx.fillText('PRESS R OR CLICK TO REDEPLOY',BASE_W/2,BASE_H/2+140);
+}
+
+function drawGameOverWarning(){
+  const t=performance.now()*0.001;
+  const flash=Math.floor(t*10)%2===0;
+  ctx.save();
+  ctx.globalAlpha=flash?0.25:0.15;
+  ctx.fillStyle=C.red;
+  ctx.fillRect(0,0,BASE_W,BASE_H);
+  ctx.globalAlpha=1;
+  ctx.strokeStyle=flash?C.yellow:C.red; ctx.lineWidth=3; ctx.shadowBlur=24; ctx.shadowColor=C.red;
+  ctx.strokeRect(BASE_W/2-250,BASE_H/2-96,500,192);
+  ctx.shadowBlur=0;
+  ctx.textAlign='center';
+  ctx.fillStyle=flash?C.yellow:C.red;
+  ctx.font='bold 40px Courier New';
+  ctx.fillText('BUS DESTROYED',BASE_W/2,BASE_H/2-34);
+  ctx.fillStyle=C.white; ctx.font='bold 18px Courier New';
+  ctx.fillText(gameOverReason,BASE_W/2,BASE_H/2+6);
+  ctx.fillStyle=C.lime; ctx.font='bold 13px Courier New';
+  ctx.fillText('EMERGENCY SYSTEM SHUTDOWN',BASE_W/2,BASE_H/2+42);
+  ctx.restore();
 }
 
 function drawDamageWarning(){
@@ -1651,7 +1713,6 @@ function render(){
   drawOverdriveFlare();
 
   if(gs===STATE.TITLE){ ctx.restore(); drawTitle(); drawGlitchSlices(); drawScanlines(); return; }
-  if(gs===STATE.GAMEOVER){ ctx.restore(); drawGameOver(); drawScanlines(); return; }
   if(gs===STATE.VICTORY){ ctx.restore(); drawVictory(); drawScanlines(); return; }
 
   drawTurboLines();
@@ -1682,6 +1743,10 @@ function render(){
   if(gs===STATE.PAUSED) drawPause();
   if(gs===STATE.WAVE_INTRO) drawWaveIntro();
   if(gs===STATE.CRASH_WARNING) drawCrashWarning();
+  if(gs===STATE.GAME_OVER){
+    if(gameOverRevealTimer>0) drawGameOverWarning();
+    else drawGameOver();
+  }
 }
 
 /* ============================== LOOP ================================ */
