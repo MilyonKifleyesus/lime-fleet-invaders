@@ -16,6 +16,10 @@ dist-ssr
 .nitro
 *.local
 
+# Local browser QA artifacts
+.playwright-mcp/
+fleet-*.png
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
