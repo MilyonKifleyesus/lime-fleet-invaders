@@ -108,9 +108,9 @@ function tickMusic(dt){
 /* ============================== SPRITES ============================= */
 const SPRITES={};
 ['engine','transmission','oil','wrench','zero','boss'].forEach((k,i)=>{
-  const srcs={engine:'../sprites/engine_invader.png',transmission:'../sprites/transmission_invader.png',
-    oil:'../sprites/oil_barrel_invader.png',wrench:'../sprites/wrench_tool_invader.png',
-    zero:'../sprites/zero_fault_drone.png',boss:'../sprites/elevator_boss.png'};
+  const srcs={engine:'sprites/engine_invader.png',transmission:'sprites/transmission_invader.png',
+    oil:'sprites/oil_barrel_invader.png',wrench:'sprites/wrench_tool_invader.png',
+    zero:'sprites/zero_fault_drone.png',boss:'sprites/elevator_boss.png'};
   const img=new Image(); img.src=srcs[k]; SPRITES[k]=img;
 });
 
