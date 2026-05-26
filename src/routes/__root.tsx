@@ -90,6 +90,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      {
+        rel: "icon",
+        href: "/sprites/fleet_icon.png",
+      },
     ],
   }),
   shellComponent: RootShell,
