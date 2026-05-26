@@ -536,7 +536,7 @@ function setupBoss(){
 let waveIntroTimer=0;
 function startGame(){
   getAudio();
-  score=0; displayScore=0; fleetHP=4; wave=1; combo=0; comboTimer=0; longestCombo=0; scorePopups=[];
+  score=0; displayScore=0; fleetHP=3; wave=1; combo=0; comboTimer=0; longestCombo=0; scorePopups=[];
   overdrive=0; crashWarningTimer=0; crashWarningReason='COLLISION'; gameOverRevealTimer=0; gameOverReason='BUS DESTROYED'; damageWarningTimer=0; damageWarningText='FLEET DAMAGE';
   player.x=BASE_W/2; player.prevX=BASE_W/2; player.tilt=0; player.recoil=0; player.alive=true;
   player.shield=player.spread=player.turbo=player.rapid=false;
@@ -684,11 +684,16 @@ function drawDrone(d){
 }
 
 /* ============================== POWERUPS ============================ */
-const POWERUP_TYPES=['turbo','rapid','shield','spread','repair','bomb'];
+const POWERUP_TYPES=['turbo','rapid','shield','spread','repair'];
 const POWERUP_LABELS={turbo:'TURBO',rapid:'RAPID',shield:'SHLD',spread:'SPRD',repair:'RPRR',bomb:'BOMB'};
 const POWERUP_COLORS={turbo:C.cyan,rapid:C.lime,shield:C.blue,spread:C.orange,repair:C.yellow,bomb:C.red};
 function spawnPowerup(x,y,force=false){
-  const chance = force ? 1 : 0.30;
+  const hazardChance = force || fleetHP<=1 ? 0 : Math.min(0.08 + wave*0.015 + overdrive*0.03, 0.20);
+  if(Math.random()<hazardChance){
+    powerups.push({x,y,type:'bomb',vy:82,life:7,t:0,hazard:true});
+    return;
+  }
+  const chance = force ? 1 : 0.22;
   if(Math.random()<chance){
     // Bias early waves toward defense
     let pool=POWERUP_TYPES.slice();
@@ -697,32 +702,22 @@ function spawnPowerup(x,y,force=false){
   }
 }
 function applyPowerup(type){
-  sndPowerup(); stats.powerups++;
   if(type==='bomb'){
-    // Clear enemy bullets and damage all
-    enemyBullets.forEach(b=>spawnExplosion(b.x,b.y,C.red,4));
-    enemyBullets=[];
-    enemies.forEach(e=>{if(e.alive){e.deathFlash=0.15;}});
-    setTimeout(()=>{
-      if(gs!==STATE.PLAYING) return;
-      enemies.forEach(e=>{
-        if(!e.alive) return;
-        e.alive=false; spawnFlash(e.x,e.y,18); spawnExplosion(e.x,e.y,C.lime,10);
-        score+=getPoints(e.type); stats.kills++;
-      });
-      if(bossActive&&boss){
-        boss.hp-=15; boss.hitFlash=1;
-        if(boss.hp<=0) bossDefeatSequence();
-      }
-      if(!bossActive && enemies.every(e=>!e.alive)){
-        setTimeout(()=>{
-          if(gs===STATE.PLAYING && !bossActive && enemies.every(e=>!e.alive)) nextWave();
-        },1200);
-      }
-      shake(10);
-    },150);
+    if(player.shield){
+      player.shield=false; player.powerType=null;
+      spawnExplosion(player.x,player.y,C.blue,14); shake(5); sndPlayerHit();
+      bigCallout('SHIELD ABSORBED BOMB', C.blue);
+      return;
+    }
+    fleetHP--; sndPlayerHit(); shake(10);
+    spawnExplosion(player.x,player.y,C.red,28); spawnFlash(player.x,player.y,34);
+    player.invincible=1.6;
+    clearPowerup();
+    if(fleetHP<=0) triggerCrashRestart('BOMB IMPACT');
+    else warnPlayerHit('BOMB IMPACT');
     return;
   }
+  sndPowerup(); stats.powerups++;
   player.powerType=type; player.powerTimer=8;
   if(type==='turbo')  player.turbo=true;
   if(type==='rapid')  player.rapid=true;
