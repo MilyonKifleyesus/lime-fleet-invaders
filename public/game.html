@@ -161,8 +161,9 @@ resizeCanvas(); // safe to call now that stars1/stars2 are declared
 /* ============================== INPUT =============================== */
 const keys={};
 let mouseX=BASE_W/2, mouseY=BASE_H/2, mousePressed=false, shootHeld=false, shootTimer=0;
-let lastInput='key'; // 'key' | 'mouse' | 'touch'
+let lastInput='key'; // 'key' | 'mouse' | 'touch' | 'gamepad'
 let mouseMovedAt=0;
+let gamepadDirX=0, gamepadFireHeld=false, gamepadIndex=null, gamepadPrevButtons=[];
 
 window.addEventListener('keydown',e=>{
   keys[e.code]=true; lastInput='key';
@@ -178,6 +179,10 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('keyup',e=>{keys[e.code]=false; if(e.code==='Space') shootHeld=false;});
 window.addEventListener('blur',()=>{ if(gs===STATE.PLAYING) gs=STATE.PAUSED; });
+window.addEventListener('gamepadconnected',e=>{ gamepadIndex=e.gamepad.index; });
+window.addEventListener('gamepaddisconnected',e=>{
+  if(gamepadIndex===e.gamepad.index){ gamepadIndex=null; gamepadDirX=0; gamepadFireHeld=false; gamepadPrevButtons=[]; }
+});
 
 canvas.addEventListener('mousemove',e=>{
   const r=canvas.getBoundingClientRect();
@@ -222,6 +227,60 @@ fireBtn.addEventListener('touchend',()=>{shootHeld=autoFire; fireBtn.classList.r
 autoBtn.addEventListener('touchstart',e=>{e.preventDefault(); autoFire=!autoFire; autoBtn.classList.toggle('on',autoFire); shootHeld=autoFire;},{passive:false});
 pauseBtn.addEventListener('click',togglePause);
 restartBtn.addEventListener('click',restartGame);
+
+function getPrimaryGamepad(){
+  if(!navigator.getGamepads) return null;
+  let pads=[];
+  try{
+    pads=Array.from(navigator.getGamepads()).filter(Boolean);
+  }catch(e){
+    return null;
+  }
+  if(!pads.length) return null;
+  const selected=pads.find(g=>g.index===gamepadIndex) || pads[0];
+  gamepadIndex=selected.index;
+  return selected;
+}
+function gamepadButtonDown(gp,index){
+  const btn=gp.buttons[index];
+  return !!btn && (btn.pressed || btn.value>0.5);
+}
+function anyGamepadButtonDown(gp,indexes){
+  return indexes.some(i=>gamepadButtonDown(gp,i));
+}
+function anyGamepadButtonPressed(gp,indexes){
+  return indexes.some(i=>gamepadButtonDown(gp,i) && !gamepadPrevButtons[i]);
+}
+function handleGamepadAction(){
+  if(gs===STATE.TITLE) startGame();
+  else if(isRestartState()) restartGame();
+  else if(gs===STATE.WAVE_INTRO) beginWave();
+}
+function updateGamepadInput(){
+  const gp=getPrimaryGamepad();
+  if(!gp){ gamepadDirX=0; gamepadFireHeld=false; return; }
+
+  const rawAxis=gp.axes[0] || 0;
+  gamepadDirX=Math.abs(rawAxis)>0.18 ? rawAxis : 0;
+  if(gamepadButtonDown(gp,14)) gamepadDirX=-1;
+  if(gamepadButtonDown(gp,15)) gamepadDirX=1;
+
+  const fireNow=anyGamepadButtonDown(gp,[0,2,5,7]);
+  const firePressed=anyGamepadButtonPressed(gp,[0,2,5,7]);
+  const menuPressed=anyGamepadButtonPressed(gp,[9]);
+  const restartPressed=anyGamepadButtonPressed(gp,[1,8]);
+
+  if(gamepadDirX!==0 || fireNow || menuPressed || restartPressed) lastInput='gamepad';
+  if(firePressed){ handleGamepadAction(); tryShoot(); }
+  if(menuPressed){
+    if(gs===STATE.PLAYING || gs===STATE.PAUSED) togglePause();
+    else handleGamepadAction();
+  }
+  if(restartPressed && isRestartState()) restartGame();
+
+  gamepadFireHeld=fireNow;
+  gamepadPrevButtons=gp.buttons.map(b=>b.pressed || b.value>0.5);
+}
 
 function togglePause(){
   if(gs===STATE.PLAYING) gs=STATE.PAUSED;
@@ -485,6 +544,7 @@ function startGame(){
   playerBullets=[]; enemyBullets=[]; particles=[]; powerups=[]; exhausts=[];
   bonusDrone=null; boss=null; bossActive=false;
   stats={kills:0,shots:0,hits:0,powerups:0,startTime:performance.now(),waves:0};
+  gamepadFireHeld=false;
   createShields(); setupEnemies(wave);
   gs=STATE.WAVE_INTRO; waveIntroTimer=2.0;
 }
@@ -510,6 +570,7 @@ function triggerGameOver(reason='BUS DESTROYED'){
   sndGameOver();
   player.invincible=999;
   shootHeld=false;
+  gamepadFireHeld=false;
   enemyBullets=[];
   playerBullets=[];
   clearPowerup();
@@ -715,6 +776,7 @@ function updateNonGameplayEffects(dt){
 function update(dt){
   tickMusic(dt);
   starScroll1 += 8*dt; starScroll2 += 22*dt;
+  updateGamepadInput();
 
   // Shooting stars
   shootingStarTimer-=dt;
@@ -775,6 +837,7 @@ function update(dt){
     if(keys['ArrowLeft']||keys['KeyA']){ player.x-=spd*dt; moved=true; lastInput='key'; }
     if(keys['ArrowRight']||keys['KeyD']){ player.x+=spd*dt; moved=true; lastInput='key'; }
     if(touchDirX!==0){ player.x+=touchDirX*spd*dt; moved=true; lastInput='touch'; }
+    if(gamepadDirX!==0){ player.x+=gamepadDirX*spd*dt; moved=true; lastInput='gamepad'; }
     if(!moved && lastInput==='mouse' && (performance.now()-mouseMovedAt)<1500){
       if(Math.abs(mouseX-player.x)>2) player.x += (mouseX-player.x)*Math.min(1, 16*dt);
     }
@@ -795,7 +858,7 @@ function update(dt){
   }
 
   shootCooldown=Math.max(0,shootCooldown-dt);
-  if(shootHeld&&shootCooldown<=0) tryShoot();
+  if((shootHeld||gamepadFireHeld)&&shootCooldown<=0) tryShoot();
   if(player.powerTimer>0){ player.powerTimer-=dt; if(player.powerTimer<=0) clearPowerup(); }
   if(player.invincible>0) player.invincible-=dt;
 
