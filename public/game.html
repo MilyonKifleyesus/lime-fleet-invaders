@@ -18,6 +18,24 @@
   #topBtns{position:fixed;top:8px;right:8px;display:none;gap:6px;z-index:11}
   #topBtns button{width:36px;height:36px;border:1.5px solid rgba(166,255,0,0.5);border-radius:6px;background:rgba(0,0,0,0.55);color:#A6FF00;font-family:inherit;font-size:14px;font-weight:bold}
   @media (pointer:coarse){#touchControls,#topBtns{display:flex}}
+  #tournamentOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.94);z-index:100;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;color:#A6FF00}
+  #tournamentOverlay.visible{display:flex}
+  #tournamentOverlay h1{font-size:26px;letter-spacing:4px;margin-bottom:4px;text-shadow:0 0 20px #A6FF00}
+  #tournamentOverlay .t-sub{font-size:11px;color:#4A7300;margin-bottom:22px;letter-spacing:2px}
+  #tournamentOverlay .t-row{display:flex;gap:8px;margin-bottom:10px}
+  #playerNameInput{background:#0d1a00;border:1.5px solid #A6FF00;color:#A6FF00;font-family:'Courier New',monospace;font-size:14px;padding:8px 12px;width:210px;outline:none;letter-spacing:1px}
+  #playerNameInput::placeholder{color:#2a4a00}
+  .t-btn{background:#0d1a00;border:1.5px solid #A6FF00;color:#A6FF00;font-family:'Courier New',monospace;font-size:12px;padding:8px 14px;cursor:pointer;letter-spacing:1px}
+  .t-btn:hover{background:#1a3300}.t-btn:disabled{opacity:0.3;cursor:not-allowed}
+  .t-btn.dim{border-color:#2a4a00;color:#2a4a00}.t-btn.dim:hover{background:#0a1500;color:#4A7300;border-color:#4A7300}
+  #playerList{list-style:none;width:310px;min-height:32px;margin-bottom:16px}
+  #playerList li{display:flex;justify-content:space-between;align-items:center;padding:5px 10px;border-bottom:1px solid #0d2000;font-size:12px;letter-spacing:1px}
+  #playerList li .pnum{color:#4A7300;margin-right:8px;font-size:11px}
+  #playerList li .pready{color:#4A7300;font-size:10px;margin-left:4px}
+  #playerList li .pdone{color:#A6FF00;font-size:10px;margin-left:4px}
+  #playerList li button{background:none;border:none;color:#FF3030;cursor:pointer;font-family:inherit;font-size:10px;padding:2px 4px}
+  #tournamentErr{color:#FF3030;font-size:10px;height:14px;margin-bottom:6px}
+  .t-actions{display:flex;gap:8px;margin-top:4px}
 </style>
 </head>
 <body>
@@ -28,6 +46,20 @@
   <div id="fireBtn">FIRE</div>
 </div>
 <div id="topBtns"><button id="pauseBtn">II</button><button id="restartBtn">R</button></div>
+<div id="tournamentOverlay">
+  <h1>TOURNAMENT MODE</h1>
+  <p class="t-sub">FLEET INVADERS — UP TO 8 PLAYERS</p>
+  <div class="t-row">
+    <input id="playerNameInput" type="text" maxlength="16" placeholder="ENTER PLAYER NAME" autocomplete="off" spellcheck="false">
+    <button class="t-btn" id="addPlayerBtn">+ ADD</button>
+  </div>
+  <p id="tournamentErr"></p>
+  <ul id="playerList"></ul>
+  <div class="t-actions">
+    <button class="t-btn" id="startTournamentBtn" disabled>▶ START TOURNAMENT</button>
+    <button class="t-btn dim" id="soloPlayBtn">SOLO PLAY</button>
+  </div>
+</div>
 <script>
 'use strict';
 
@@ -119,7 +151,7 @@ const C={ bg:'#000', lime:'#A6FF00', limeDim:'#4A7300', limeGlow:'#7CFF00', whit
   gray:'#2A2A2A', orange:'#FFB000', red:'#FF3030', yellow:'#FFFF00', blue:'#00BFFF', cyan:'#00FFFF' };
 
 /* ============================== STATE =============================== */
-const STATE={TITLE:0,PLAYING:1,PAUSED:2,GAME_OVER:3,GAMEOVER:3,VICTORY:4,WAVE_INTRO:5,CRASH_WARNING:6};
+const STATE={TITLE:0,PLAYING:1,PAUSED:2,GAME_OVER:3,GAMEOVER:3,VICTORY:4,WAVE_INTRO:5,CRASH_WARNING:6,PLAYER_INTRO:7,LEADERBOARD:8,MODE_SELECT:9};
 let gs=STATE.TITLE;
 let score=0, displayScore=0, fleetHP=3, wave=1;
 const TOTAL_WAVES=6;
@@ -130,6 +162,9 @@ let bossActive=false;
 let combo=0, comboTimer=0, longestCombo=0;
 let scorePopups=[];
 let hiScore = Number(localStorage.getItem('fleetInvadersHi')||0);
+
+// Tournament
+let tournamentPlayers=[], currentPlayerIndex=0, tournamentMode=false;
 
 // Stats for run summary
 let stats={kills:0, shots:0, hits:0, powerups:0, startTime:0, waves:0};
@@ -158,6 +193,92 @@ function initStars(){
 initStars();
 resizeCanvas(); // safe to call now that stars1/stars2 are declared
 
+/* ============================== TOURNAMENT =========================== */
+const tournamentOverlay=document.getElementById('tournamentOverlay');
+const playerNameInput=document.getElementById('playerNameInput');
+const addPlayerBtn=document.getElementById('addPlayerBtn');
+const playerListEl=document.getElementById('playerList');
+const startTournamentBtn=document.getElementById('startTournamentBtn');
+const soloPlayBtn=document.getElementById('soloPlayBtn');
+const tournamentErr=document.getElementById('tournamentErr');
+
+function renderPlayerList(){
+  playerListEl.innerHTML='';
+  tournamentPlayers.forEach((p,i)=>{
+    const li=document.createElement('li');
+    const badge=p.finished?`<span class="pdone">✓ DONE</span>`:`<span class="pready">READY</span>`;
+    li.innerHTML=`<span><span class="pnum">${i+1}.</span>${p.name}${badge}</span><button onclick="removePlayer(${i})">✕</button>`;
+    playerListEl.appendChild(li);
+  });
+  startTournamentBtn.disabled=tournamentPlayers.length<2;
+}
+function addPlayer(){
+  const name=playerNameInput.value.trim().toUpperCase().replace(/[^A-Z0-9 _\-]/g,'');
+  if(!name){tournamentErr.textContent='ENTER A NAME'; return;}
+  if(tournamentPlayers.length>=8){tournamentErr.textContent='MAX 8 PLAYERS'; return;}
+  if(tournamentPlayers.some(p=>p.name===name)){tournamentErr.textContent='NAME ALREADY IN USE'; return;}
+  tournamentErr.textContent='';
+  tournamentPlayers.push({name,score:0,stats:null,longestCombo:0,finished:false});
+  playerNameInput.value=''; playerNameInput.focus();
+  renderPlayerList();
+}
+function removePlayer(i){
+  tournamentPlayers.splice(i,1);
+  renderPlayerList();
+}
+addPlayerBtn.addEventListener('click',addPlayer);
+playerNameInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer();}});
+startTournamentBtn.addEventListener('click',()=>{
+  if(tournamentPlayers.length<2) return;
+  tournamentMode=true; currentPlayerIndex=0;
+  tournamentOverlay.classList.remove('visible');
+  gs=STATE.PLAYER_INTRO;
+});
+soloPlayBtn.addEventListener('click',()=>{
+  tournamentMode=false; tournamentPlayers=[];
+  tournamentOverlay.classList.remove('visible');
+  gs=STATE.TITLE;
+});
+function openTournamentSetup(){
+  tournamentPlayers=[]; currentPlayerIndex=0;
+  renderPlayerList();
+  tournamentOverlay.classList.add('visible');
+  setTimeout(()=>playerNameInput.focus(),60);
+}
+function saveTournamentScore(){
+  const p=tournamentPlayers[currentPlayerIndex];
+  const elapsed=Math.floor((performance.now()-stats.startTime)/1000);
+  const acc=stats.shots>0?Math.round(stats.hits/stats.shots*100):0;
+  p.score=score; p.longestCombo=longestCombo;
+  p.stats={...stats,elapsed,acc}; p.finished=true;
+}
+function advanceTournament(){
+  currentPlayerIndex++;
+  gs=(currentPlayerIndex>=tournamentPlayers.length)?STATE.LEADERBOARD:STATE.PLAYER_INTRO;
+}
+function resetTournament(){
+  tournamentMode=false; tournamentPlayers=[]; currentPlayerIndex=0;
+  gs=STATE.TITLE;
+}
+
+// Mode select button hit regions (relative to BASE_W/2, BASE_H/2)
+function getModeSelectBtns(){
+  const cy=BASE_H/2+20, bh=130, bw=Math.min(220, BASE_W*0.26);
+  const gap=24;
+  return {
+    solo:  {x:BASE_W/2-gap/2-bw, y:cy-bh/2, w:bw, h:bh},
+    tour:  {x:BASE_W/2+gap/2,    y:cy-bh/2, w:bw, h:bh},
+  };
+}
+function handleModeSelectClick(mx,my){
+  const {solo,tour}=getModeSelectBtns();
+  if(mx>=solo.x&&mx<=solo.x+solo.w&&my>=solo.y&&my<=solo.y+solo.h){
+    startGame();
+  } else if(mx>=tour.x&&mx<=tour.x+tour.w&&my>=tour.y&&my<=tour.y+tour.h){
+    openTournamentSetup();
+  }
+}
+
 /* ============================== INPUT =============================== */
 const keys={};
 let mouseX=BASE_W/2, mouseY=BASE_H/2, mousePressed=false, shootHeld=false, shootTimer=0;
@@ -170,9 +291,16 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Space'){e.preventDefault(); shootHeld=true; tryShoot();}
   if(e.code==='KeyP'){togglePause();}
   if(e.code==='KeyM'){musicOn=!musicOn;}
-  if(e.code==='KeyR'){restartGame();}
+  if(e.code==='KeyR'){if(!tournamentMode||!isRestartState()) restartGame();}
+  if(e.code==='Escape'&&gs===STATE.MODE_SELECT){gs=STATE.TITLE;}
+  if(gs===STATE.MODE_SELECT){
+    if(e.code==='KeyS'||e.code==='Digit1') startGame();
+    if(e.code==='KeyT'||e.code==='KeyF'||e.code==='Digit2') openTournamentSetup();
+  }
   if(e.code==='Enter'||e.code==='Space'){
-    if(gs===STATE.TITLE) startGame();
+    if(gs===STATE.TITLE) gs=STATE.MODE_SELECT;
+    else if(gs===STATE.PLAYER_INTRO) startGame();
+    else if(gs===STATE.LEADERBOARD) resetTournament();
     else if(isRestartState()) restartGame();
     else if(gs===STATE.WAVE_INTRO) beginWave();
   }
@@ -192,7 +320,10 @@ canvas.addEventListener('mousemove',e=>{
 });
 canvas.addEventListener('mousedown',e=>{
   mousePressed=true; shootHeld=true; lastInput='mouse'; mouseMovedAt=performance.now();
-  if(gs===STATE.TITLE) startGame();
+  if(gs===STATE.TITLE) gs=STATE.MODE_SELECT;
+  else if(gs===STATE.MODE_SELECT) handleModeSelectClick(mouseX,mouseY);
+  else if(gs===STATE.PLAYER_INTRO) startGame();
+  else if(gs===STATE.LEADERBOARD) resetTournament();
   else if(isRestartState()) restartGame();
   else if(gs===STATE.WAVE_INTRO) beginWave();
   else tryShoot();
@@ -210,7 +341,10 @@ let touchDirX=0, joystickActive=false, joystickStartX=0;
 let autoFire=false;
 
 function touchHandle(){
-  if(gs===STATE.TITLE) startGame();
+  if(gs===STATE.TITLE) gs=STATE.MODE_SELECT;
+  else if(gs===STATE.MODE_SELECT) handleModeSelectClick(mouseX,mouseY);
+  else if(gs===STATE.PLAYER_INTRO) startGame();
+  else if(gs===STATE.LEADERBOARD) resetTournament();
   else if(isRestartState()) restartGame();
   else if(gs===STATE.WAVE_INTRO) beginWave();
 }
@@ -252,7 +386,9 @@ function anyGamepadButtonPressed(gp,indexes){
   return indexes.some(i=>gamepadButtonDown(gp,i) && !gamepadPrevButtons[i]);
 }
 function handleGamepadAction(){
-  if(gs===STATE.TITLE) startGame();
+  if(gs===STATE.TITLE) gs=STATE.MODE_SELECT;
+  else if(gs===STATE.PLAYER_INTRO) startGame();
+  else if(gs===STATE.LEADERBOARD) resetTournament();
   else if(isRestartState()) restartGame();
   else if(gs===STATE.WAVE_INTRO) beginWave();
 }
@@ -548,7 +684,14 @@ function startGame(){
   createShields(); setupEnemies(wave);
   gs=STATE.WAVE_INTRO; waveIntroTimer=2.0;
 }
-function restartGame(){ startGame(); }
+function restartGame(){
+  if(tournamentMode && isRestartState()){
+    saveTournamentScore();
+    advanceTournament();
+  } else {
+    startGame();
+  }
+}
 function isRestartState(state=gs){
   return state===STATE.GAME_OVER || state===STATE.VICTORY || state===STATE.CRASH_WARNING;
 }
@@ -1628,7 +1771,15 @@ function drawGameOver(){
   ctx.fillText('TIME ALIVE      '+elapsed+'s', lx, BASE_H/2+110);
   ctx.textAlign='center';
   ctx.fillStyle=C.lime; ctx.font='13px Courier New';
-  ctx.fillText('PRESS R OR CLICK TO REDEPLOY',BASE_W/2,BASE_H/2+140);
+  if(tournamentMode){
+    const remaining=tournamentPlayers.length-currentPlayerIndex-1;
+    const label=remaining>0?`PRESS ANY KEY — NEXT: ${tournamentPlayers[currentPlayerIndex+1].name}`:'PRESS ANY KEY TO SEE FINAL RESULTS';
+    ctx.fillText(label,BASE_W/2,BASE_H/2+140);
+    ctx.fillStyle=C.limeDim; ctx.font='10px Courier New';
+    ctx.fillText(`PLAYER ${currentPlayerIndex+1} OF ${tournamentPlayers.length}`,BASE_W/2,BASE_H/2+158);
+  } else {
+    ctx.fillText('PRESS R OR CLICK TO REDEPLOY',BASE_W/2,BASE_H/2+140);
+  }
 }
 
 function drawGameOverWarning(){
@@ -1716,7 +1867,15 @@ function drawVictory(){
   ctx.fillStyle=C.white; ctx.font='18px Courier New';
   ctx.fillText('FINAL SCORE: '+score,BASE_W/2,BASE_H/2+14);
   ctx.fillStyle=C.yellow; ctx.font='13px Courier New';
-  ctx.fillText('PRESS R OR CLICK TO PLAY AGAIN',BASE_W/2,BASE_H/2+60);
+  if(tournamentMode){
+    const remaining=tournamentPlayers.length-currentPlayerIndex-1;
+    const label=remaining>0?`PRESS ANY KEY — NEXT: ${tournamentPlayers[currentPlayerIndex+1].name}`:'PRESS ANY KEY TO SEE FINAL RESULTS';
+    ctx.fillText(label,BASE_W/2,BASE_H/2+60);
+    ctx.fillStyle=C.limeDim; ctx.font='10px Courier New';
+    ctx.fillText(`PLAYER ${currentPlayerIndex+1} OF ${tournamentPlayers.length}`,BASE_W/2,BASE_H/2+78);
+  } else {
+    ctx.fillText('PRESS R OR CLICK TO PLAY AGAIN',BASE_W/2,BASE_H/2+60);
+  }
 }
 
 function drawWaveIntro(){
@@ -1761,6 +1920,138 @@ function drawWaveIntro(){
   ctx.restore(); // end slide translate
 }
 
+function drawModeSelect(){
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,BASE_W,BASE_H);
+  drawStarsParallax(); drawVignette(); drawBorder();
+  const t=performance.now()*0.001;
+  // Header
+  ctx.textAlign='center';
+  ctx.fillStyle=C.lime; ctx.shadowBlur=14; ctx.shadowColor=C.lime;
+  ctx.font='bold 22px Courier New';
+  ctx.fillText('SELECT GAME MODE',BASE_W/2,BASE_H/2-120);
+  ctx.shadowBlur=0;
+  ctx.fillStyle=C.limeDim; ctx.font='10px Courier New';
+  ctx.fillText('CHOOSE HOW YOU WANT TO PLAY',BASE_W/2,BASE_H/2-96);
+
+  const {solo,tour}=getModeSelectBtns();
+  // Check hover
+  const soloHov=mouseX>=solo.x&&mouseX<=solo.x+solo.w&&mouseY>=solo.y&&mouseY<=solo.y+solo.h;
+  const tourHov=mouseX>=tour.x&&mouseX<=tour.x+tour.w&&mouseY>=tour.y&&mouseY<=tour.y+tour.h;
+  const pulse=Math.sin(t*5)*0.12+0.88;
+
+  // Solo button
+  ctx.fillStyle=soloHov?'rgba(166,255,0,0.12)':'rgba(0,20,0,0.85)';
+  ctx.fillRect(solo.x,solo.y,solo.w,solo.h);
+  ctx.strokeStyle=soloHov?C.lime:C.limeDim;
+  ctx.lineWidth=soloHov?2.5:1.5;
+  if(soloHov){ctx.shadowBlur=14*pulse; ctx.shadowColor=C.lime;}
+  ctx.strokeRect(solo.x,solo.y,solo.w,solo.h);
+  ctx.shadowBlur=0;
+  ctx.fillStyle=soloHov?C.lime:C.white;
+  ctx.font=`bold 20px Courier New`; ctx.textAlign='center';
+  ctx.fillText('SOLO',solo.x+solo.w/2,solo.y+46);
+  ctx.fillStyle=soloHov?C.white:C.limeDim;
+  ctx.font='11px Courier New';
+  ctx.fillText('PLAY ALONE',solo.x+solo.w/2,solo.y+70);
+  ctx.fillStyle='#2a4a00'; ctx.font='10px Courier New';
+  ctx.fillText('[S] or click',solo.x+solo.w/2,solo.y+solo.h-16);
+
+  // Friends button
+  ctx.fillStyle=tourHov?'rgba(166,255,0,0.12)':'rgba(0,20,0,0.85)';
+  ctx.fillRect(tour.x,tour.y,tour.w,tour.h);
+  ctx.strokeStyle=tourHov?C.lime:C.limeDim;
+  ctx.lineWidth=tourHov?2.5:1.5;
+  if(tourHov){ctx.shadowBlur=14*pulse; ctx.shadowColor=C.lime;}
+  ctx.strokeRect(tour.x,tour.y,tour.w,tour.h);
+  ctx.shadowBlur=0;
+  ctx.fillStyle=tourHov?C.lime:C.white;
+  ctx.font='bold 20px Courier New'; ctx.textAlign='center';
+  ctx.fillText('WITH',tour.x+tour.w/2,tour.y+34);
+  ctx.fillText('FRIENDS',tour.x+tour.w/2,tour.y+58);
+  ctx.fillStyle=tourHov?C.white:C.limeDim;
+  ctx.font='11px Courier New';
+  ctx.fillText('TOURNAMENT MODE',tour.x+tour.w/2,tour.y+80);
+  ctx.fillStyle='#2a4a00'; ctx.font='10px Courier New';
+  ctx.fillText('[T] or click',tour.x+tour.w/2,tour.y+tour.h-16);
+
+  ctx.fillStyle='#2a4a00'; ctx.font='10px Courier New'; ctx.textAlign='center';
+  ctx.fillText('ESC to go back',BASE_W/2,BASE_H/2+110);
+  drawGlitchSlices(); drawScanlines();
+}
+
+function drawPlayerIntro(){
+  ctx.fillStyle='rgba(0,0,0,0.94)'; ctx.fillRect(0,0,BASE_W,BASE_H);
+  drawStarsParallax(); drawVignette(); drawBorder();
+  const t=performance.now()*0.001;
+  const pulse=Math.sin(t*4)*0.2+0.8;
+  const bw=Math.min(BASE_W*0.7,520), bh=240, bx=BASE_W/2-bw/2, by=BASE_H/2-bh/2;
+  ctx.strokeStyle=C.lime; ctx.lineWidth=2; ctx.shadowBlur=16*pulse; ctx.shadowColor=C.lime;
+  ctx.strokeRect(bx,by,bw,bh); ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(0,20,0,0.9)'; ctx.fillRect(bx+2,by+2,bw-4,bh-4);
+  ctx.textAlign='center';
+  ctx.fillStyle=C.limeDim; ctx.font='bold 11px Courier New';
+  ctx.fillText(`PLAYER ${currentPlayerIndex+1} OF ${tournamentPlayers.length}  —  TOURNAMENT MODE`,BASE_W/2,by+32);
+  const name=tournamentPlayers[currentPlayerIndex].name;
+  ctx.fillStyle=C.lime; ctx.shadowBlur=22*pulse; ctx.shadowColor=C.lime;
+  ctx.font=`bold ${Math.min(42,Math.floor(bw*0.075))}px Courier New`;
+  ctx.fillText(name,BASE_W/2,by+106); ctx.shadowBlur=0;
+  ctx.fillStyle=C.white; ctx.font='bold 15px Courier New';
+  ctx.fillText('YOUR TURN!',BASE_W/2,by+148);
+  if(Math.floor(t*2)%2===0){
+    ctx.fillStyle=C.lime; ctx.font='11px Courier New';
+    ctx.fillText('PRESS SPACE / CLICK / TAP TO BEGIN',BASE_W/2,by+186);
+  }
+  drawGlitchSlices(); drawScanlines();
+}
+
+function drawLeaderboard(){
+  ctx.fillStyle='rgba(0,0,0,0.96)'; ctx.fillRect(0,0,BASE_W,BASE_H);
+  drawStarsParallax(); drawVignette(); drawBorder();
+  const sorted=[...tournamentPlayers].sort((a,b)=>b.score-a.score);
+  const rowH=46, headerH=90;
+  const bh=Math.min(BASE_H*0.88, headerH+sorted.length*rowH+68);
+  const bw=Math.min(BASE_W*0.82,540);
+  const bx=BASE_W/2-bw/2, by=BASE_H/2-bh/2;
+  ctx.strokeStyle=C.lime; ctx.lineWidth=2; ctx.shadowBlur=14; ctx.shadowColor=C.lime;
+  ctx.strokeRect(bx,by,bw,bh); ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(0,16,0,0.95)'; ctx.fillRect(bx+2,by+2,bw-4,bh-4);
+  ctx.textAlign='center';
+  ctx.fillStyle=C.lime; ctx.shadowBlur=18; ctx.shadowColor=C.lime;
+  ctx.font='bold 28px Courier New'; ctx.fillText('TOURNAMENT RESULTS',BASE_W/2,by+46);
+  ctx.shadowBlur=0;
+  ctx.fillStyle=C.limeDim; ctx.font='10px Courier New';
+  ctx.fillText(`${sorted.length} PLAYERS  —  FINAL STANDINGS`,BASE_W/2,by+70);
+  const goldC='#FFD700', silverC='#C0C0C0', bronzeC='#CD7F32';
+  const medalC=[goldC,silverC,bronzeC];
+  const medals=['1ST','2ND','3RD'];
+  sorted.forEach((p,rank)=>{
+    const ry=by+headerH+rank*rowH;
+    const isTop=rank<3;
+    const col=isTop?medalC[rank]:C.limeDim;
+    const fs=isTop?15:13;
+    if(rank===0){
+      ctx.fillStyle='rgba(255,215,0,0.06)'; ctx.fillRect(bx+4,ry,bw-8,rowH-2);
+    }
+    ctx.fillStyle=col; ctx.font=`bold ${fs}px Courier New`; ctx.textAlign='left';
+    ctx.fillText(isTop?medals[rank]:`#${rank+1}`,bx+18,ry+rowH/2+5);
+    ctx.fillStyle=isTop?C.white:'#888'; ctx.font=`${isTop?'bold ':''}${fs}px Courier New`;
+    const nameClipped=p.name.length>14?p.name.slice(0,13)+'…':p.name;
+    ctx.fillText(nameClipped,bx+70,ry+rowH/2+5);
+    ctx.fillStyle=col; ctx.font=`bold ${fs}px Courier New`; ctx.textAlign='right';
+    ctx.fillText(String(p.score).padStart(7,'0'),bx+bw-18,ry+rowH/2+5);
+    if(p.stats){
+      ctx.fillStyle='#444'; ctx.font='9px Courier New'; ctx.textAlign='right';
+      ctx.fillText(`acc ${p.stats.acc}%  combo x${p.longestCombo}  ${p.stats.elapsed}s`,bx+bw-18,ry+rowH/2+18);
+    }
+  });
+  const t=performance.now()*0.001;
+  if(Math.floor(t*2)%2===0){
+    ctx.fillStyle=C.limeDim; ctx.font='11px Courier New'; ctx.textAlign='center';
+    ctx.fillText('PRESS ANY KEY / CLICK TO RETURN TO TITLE',BASE_W/2,by+bh-18);
+  }
+  drawGlitchSlices(); drawScanlines();
+}
+
 /* ============================== RENDER ============================== */
 function render(){
   ctx.clearRect(-60,-60,BASE_W+120,BASE_H+120);
@@ -1771,6 +2062,9 @@ function render(){
   drawOverdriveFlare();
 
   if(gs===STATE.TITLE){ ctx.restore(); drawTitle(); drawGlitchSlices(); drawScanlines(); return; }
+  if(gs===STATE.MODE_SELECT){ ctx.restore(); drawModeSelect(); return; }
+  if(gs===STATE.PLAYER_INTRO){ ctx.restore(); drawPlayerIntro(); return; }
+  if(gs===STATE.LEADERBOARD){ ctx.restore(); drawLeaderboard(); return; }
   if(gs===STATE.VICTORY){ ctx.restore(); drawVictory(); drawScanlines(); return; }
 
   drawTurboLines();
