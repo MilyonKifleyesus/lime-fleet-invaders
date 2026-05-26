@@ -1,0 +1,23 @@
+{
+  "checks": [
+    "game iframe loaded",
+    "connected controller status is shown",
+    "A opens game mode selection",
+    "A chooses tournament mode",
+    "controller name pad is shown",
+    "X adds a controller-entered player",
+    "controller setup accepts a second player",
+    "Start begins a valid tournament",
+    "A proceeds into gameplay",
+    "left stick moves the bus",
+    "A fires during gameplay",
+    "Start pauses gameplay",
+    "A resumes paused gameplay",
+    "controller setup is available on mobile viewport"
+  ],
+  "logs": [
+    "warning: THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+    "mobile warning: THREE.Clock: This module has been deprecated. Please use THREE.Timer instead."
+  ],
+  "failures": []
+}
