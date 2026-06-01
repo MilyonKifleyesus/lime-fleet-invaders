@@ -5,13 +5,13 @@ export const Route = createFileRoute("/")({
   component: Index,
   head: () => ({
     meta: [
-      { title: "Fleet Invaders - Bus Pulse" },
+      { title: "Fleet Invaders - Fleet Zero Prodaction" },
       {
         name: "description",
         content:
-          "Neon arcade shooter from the Bus Pulse fleet maintenance division. Defend the garage across six waves, then enter Overdrive.",
+          "Neon arcade shooter from the Fleet Zero Prodaction fleet maintenance division. Defend the garage across six waves, then enter Overdrive.",
       },
-      { property: "og:title", content: "Fleet Invaders - Bus Pulse" },
+      { property: "og:title", content: "Fleet Invaders - Fleet Zero Prodaction" },
       {
         property: "og:description",
         content: "Neon arcade shooter. Defend the fleet, beat the Broken Elevator, enter Overdrive.",
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/")({
 function Index() {
   return (
     <main className="fixed inset-0 bg-black overflow-hidden">
-      <h1 className="sr-only">Fleet Invaders - Bus Pulse arcade shooter</h1>
+      <h1 className="sr-only">Fleet Invaders - Fleet Zero Prodaction arcade shooter</h1>
 
       <div className="absolute inset-0 z-0">
         <StarshipShader />
