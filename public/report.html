@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Fleet Invaders Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* A bus route: one lime line carries the owner from visit to boss. */
+:root{
+  color-scheme:dark;
+  --bg:#050705;--panel:#0D120C;
+  --ink:#F3F7EC;--mute:#AEB8A6;--faint:#859079;
+  --line:rgba(243,247,236,.11);--line-2:rgba(243,247,236,.22);
+  --lime:#B8FF38;--lime-ink:#0B1400;--amber:#FFB000;
+  --display:"Barlow Condensed","Arial Narrow","Segoe UI",system-ui,sans-serif;
+  --ui:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+html{scrollbar-color:#3a4634 var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.55 var(--ui);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+::selection{background:var(--lime);color:var(--lime-ink)}
+h1,h2,h3,p,ol,ul,dl,dd{margin:0;padding:0}
+ol,ul{list-style:none}
+h1,h2,h3{font-family:var(--display);font-weight:600;letter-spacing:-.01em;line-height:1.04;text-wrap:balance}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--lime);outline-offset:2px;border-radius:4px}
+.wrap{max-width:1120px;margin-inline:auto;padding-block:clamp(16px,3vw,28px) 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;font:600 20px/1 var(--display)}
+.brand img{width:38px;height:auto}
+.brand small{font:400 15px/1 var(--ui);color:var(--mute);margin-left:6px}
+.days{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.daynav{display:inline-flex;align-items:center;border:1px solid var(--line-2);border-radius:999px;background:var(--panel)}
+.daynav button{width:36px;height:36px;display:grid;place-items:center}
+.daynav button:disabled{color:var(--line-2);cursor:default}
+#dayLabel{min-width:150px;text-align:center;font-size:15px;font-weight:500}
+.pill{height:38px;padding:0 14px;border:1px solid var(--line-2);border-radius:999px;background:var(--panel);font-size:14px;font-weight:500;color:var(--mute)}
+.pill:hover{color:var(--ink)}
+.pill[aria-pressed="true"]{background:var(--ink);color:#050705;border-color:var(--ink)}
+.state{padding:clamp(48px,12vw,120px) 0;max-width:40ch}
+.state h1{font-size:clamp(36px,6vw,56px)}
+.state p{margin-top:12px;color:var(--mute)}
+.state button{margin-top:18px;height:44px;padding:0 20px;border-radius:999px;background:var(--lime);color:var(--lime-ink);font-weight:600}
+.hero{display:flex;align-items:center;justify-content:space-between;gap:32px;padding-block:clamp(36px,6vw,72px) clamp(24px,3vw,40px)}
+.hero-txt{min-width:0}
+.hero-art{flex:none;width:clamp(208px,25vw,320px);height:auto}
+.hero h1{font-size:clamp(52px,9vw,96px);line-height:.98;max-width:15ch}
+.hero h1 b,.statement b{color:var(--lime);font-weight:inherit}
+.hero p{margin-top:20px;font-size:clamp(19px,2.2vw,24px);line-height:1.35;max-width:42ch;text-wrap:pretty}
+.live{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:15px;color:var(--mute)}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--lime);flex:none}
+.live i.off{background:var(--faint)}
+.facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;padding-block:24px;border-block:1px solid var(--line)}
+.facts dt{font-size:15px;color:var(--mute)}
+.facts dd{margin-top:4px;font:600 clamp(32px,4vw,44px)/1 var(--display);font-variant-numeric:tabular-nums}
+.facts small{display:block;font:400 14px/1.35 var(--ui);color:var(--faint);margin-top:6px}
+.sec{padding-top:clamp(48px,7vw,88px)}
+.statement{font-size:clamp(32px,4.6vw,52px);max-width:22ch}
+.note{margin-top:10px;color:var(--mute);max-width:60ch}
+#dayChart{position:relative;margin-top:24px}
+#dayChart svg{display:block;width:100%;height:auto;overflow:visible;touch-action:pan-y}
+#dayChart text{font-family:var(--ui);font-size:12px;fill:var(--faint)}
+#dayChart text.cap{fill:var(--mute);font-size:13px}
+#dayChart text.lab{fill:var(--ink);font-size:13px;font-weight:600}
+#dayChart text.cell{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+#dayTip{position:absolute;left:0;top:0;pointer-events:none;background:var(--ink);color:#050705;padding:5px 10px;border-radius:7px;font-size:14px;font-weight:500;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+details{margin-top:12px;font-size:15px;color:var(--mute)}
+summary{cursor:pointer;width:max-content;max-width:100%}
+.tbl{overflow-x:auto;margin-top:8px}
+.tbl table{border-collapse:collapse;min-width:256px;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{padding:4px 24px 4px 0;text-align:left;border-bottom:1px solid var(--line);font-weight:400}
+.tbl th{color:var(--faint);font-size:13px}
+.route{margin-top:28px;--track:112px;--mark:60px;--sprite:50px;--end:112px}
+.stop{display:grid;grid-template-columns:var(--track) minmax(0,1fr);column-gap:clamp(12px,2.4vw,28px);min-height:100px}
+.stop.end{min-height:128px}
+.track{position:relative}
+.track .line{position:absolute;left:50%;top:50%;height:calc(100% + 20px);transform:translateX(-50%);background:var(--lime)}
+.track .line.none{background:var(--line-2)}
+.track .mark{position:absolute;left:50%;top:50%;width:var(--mark);height:var(--mark);transform:translate(-50%,-50%);display:grid;place-items:center;z-index:1}
+.track .mark img{width:var(--sprite);height:var(--sprite);object-fit:contain;filter:drop-shadow(0 0 2px var(--bg)) drop-shadow(0 0 3px var(--bg)) drop-shadow(0 0 3px var(--bg))}
+.track .mark.start::before{content:"";width:28px;height:28px;border-radius:50%;background:var(--bg);border:7px solid var(--lime)}
+.stop.end .mark{width:var(--end);height:var(--end)}
+.stop.end .mark img{width:calc(var(--end) - 4px);height:calc(var(--end) - 4px)}
+.stop-body{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:clamp(8px,2vw,20px);padding-block:10px;border-bottom:1px solid var(--line)}
+.stop.end .stop-body{border-bottom:0}
+.stop-name{font:600 clamp(20px,2.4vw,26px)/1.12 var(--display)}
+.stop-note{display:flex;align-items:flex-start;gap:6px;margin-top:4px;font-size:15px;line-height:1.35;color:var(--amber)}
+.stop-note svg{flex:none;margin-top:2px}
+.stop-num{text-align:right;font:600 clamp(26px,3.4vw,36px)/1 var(--display);font-variant-numeric:tabular-nums}
+.stop-num small{display:block;font:400 14px/1.3 var(--ui);color:var(--faint);margin-top:3px}
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(32px,6vw,80px)}
+.duo h3,.sub-h{font-size:clamp(26px,3vw,36px)}
+.bars{margin-top:20px;display:grid;gap:14px}
+.bars li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px}
+.bars i{grid-column:1/-1;display:block;height:10px;background:var(--line);border-radius:4px;overflow:hidden}
+.bars i b{display:block;height:100%;background:var(--lime);border-radius:0 4px 4px 0}
+.bars span:nth-child(2){color:var(--mute);font-variant-numeric:tabular-nums}
+.top5{margin-top:20px}
+.top5 li{display:grid;grid-template-columns:28px 28px minmax(0,1fr) auto;gap:8px;align-items:center;padding-block:8px;border-bottom:1px solid var(--line)}
+.top5 li:first-child{border-top:1px solid var(--line)}
+.top5 .n{font:600 19px/1 var(--display);color:var(--mute)}
+.top5 .nm{font:600 20px/1.1 var(--display);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top5 .sc{font:600 22px/1 var(--display);font-variant-numeric:tabular-nums}
+.li-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:clamp(20px,3vw,40px);margin-top:24px;align-items:start}
+#liCard{display:block;width:100%;height:auto;border:1px solid var(--line-2);border-radius:12px}
+.card-act,.post-act{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:14px}
+.btn{min-height:42px;padding:0 18px;border-radius:999px;font-size:15px;font-weight:600;background:var(--lime);color:var(--lime-ink)}
+.btn:hover{background:#cbff66}
+.btn.ghost{background:none;border:1px solid var(--line-2);color:var(--ink)}
+.btn.ghost:hover{background:none;border-color:var(--ink)}
+.msg{font-size:14px;color:var(--mute)}
+.post{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+#postText{white-space:pre-wrap;font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+.defs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:20px}
+.defs dt{font-weight:600}
+.defs dd{margin-top:4px;color:var(--mute);font-size:15px;line-height:1.45}
+#hiddenNote{margin-top:18px;font-size:15px;color:var(--mute)}
+[hidden]{display:none!important}
+@media (max-width:820px){
+  .facts,.defs{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .duo,.li-grid{grid-template-columns:minmax(0,1fr)}
+  .hero-art{display:none}
+}
+@media (max-width:520px){
+  .route{--track:68px;--mark:46px;--sprite:38px;--end:68px}
+  .stop{min-height:84px}
+  .stop.end{min-height:92px}
+  .hero h1{max-width:none}
+  .brand small{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><img src="sprites/bus_gunner.png" alt=""><span>Fleet Invaders</span><small>Private report</small></div>
+    <div class="days" id="dayControls" hidden>
+      <div class="daynav">
+        <button type="button" id="dayPrev" aria-label="Earlier day"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 2.5 4.5 7 9 11.5"/></svg></button>
+        <span id="dayLabel" aria-live="polite"></span>
+        <button type="button" id="dayNext" aria-label="Later day"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 2.5 9.5 7 5 11.5"/></svg></button>
+      </div>
+      <button class="pill" type="button" id="dayAll" aria-pressed="false">All days</button>
+    </div>
+  </header>
+
+  <div class="state" id="state"><h1>Loading the report…</h1></div>
+
+  <main id="report" hidden>
+    <div class="hero">
+      <div class="hero-txt">
+        <h1 id="repHero"></h1>
+        <p id="repSub"></p>
+        <div class="live"><i id="liveDot"></i><span id="liveText"></span></div>
+      </div>
+      <img class="hero-art" src="sprites/elevator_boss_portrait.png" alt="">
+    </div>
+
+    <div id="detail">
+      <dl class="facts" id="repFacts"></dl>
+
+      <section class="sec">
+        <h2 class="statement" id="dayTitle"></h2>
+        <p class="note">Each dot is one game. Hover or tap a dot to see who played it.</p>
+        <div id="dayChart"><div id="dayTip" hidden></div></div>
+        <details>
+          <summary>See this as a table</summary>
+          <div class="tbl" id="dayTable"></div>
+        </details>
+      </section>
+
+      <section class="sec">
+        <h2 class="statement" id="routeTitle"></h2>
+        <p class="note">The line gets thinner as players drop off. It shows the furthest each player got.</p>
+        <div class="route" id="route"></div>
+      </section>
+
+      <section class="sec duo">
+        <div>
+          <h3 id="inputTitle"></h3>
+          <ul class="bars" id="inputBars"></ul>
+        </div>
+        <div>
+          <h3>Top five</h3>
+          <ol class="top5" id="topFive"></ol>
+        </div>
+      </section>
+
+      <section class="sec">
+        <h2 class="statement">Ready for LinkedIn.</h2>
+        <p class="note">The image and the post text fill in by themselves from the numbers above.</p>
+        <div class="li-grid">
+          <div>
+            <canvas id="liCard" width="1200" height="627" role="img"></canvas>
+            <div class="card-act">
+              <button class="btn" type="button" id="saveBtn">Save image</button>
+              <span class="msg">1200 × 627, ready to post</span>
+            </div>
+          </div>
+          <div class="post">
+            <p id="postText"></p>
+            <div class="post-act">
+              <button class="btn" type="button" id="copyBtn">Copy post text</button>
+              <span class="msg" id="copyMsg" role="status"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="sec">
+      <h3 class="sub-h">How we count</h3>
+      <dl class="defs">
+        <div><dt>Visit</dt><dd>The game was opened on a device, or New player was pressed. It does not count as a player until a name is entered.</dd></div>
+        <div><dt>Player</dt><dd>One name. Two different people who type MINA count as one, so treat this as a close count.</dd></div>
+        <div><dt>Game</dt><dd>One run from start to game over. Games quit early are counted apart and left off the leaderboard.</dd></div>
+        <div><dt>Day</dt><dd id="dayDef"></dd></div>
+      </dl>
+      <p id="hiddenNote"></p>
+    </section>
+  </main>
+</div>
+
+<script src="fleet-data.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const REFRESH_MS = 60000;
+
+  const token = location.hash.replace(/^#/, '');
+  const state = { day: null, all: false, data: null, request: 0 };
+  const images = {};
+  function loadImage(name) {
+    if (!images[name]) {
+      images[name] = new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = `sprites/${name}.png`;
+      });
+    }
+    return images[name];
+  }
+
+  /* ---------- wording ---------- */
+  const dateOf = (iso) => { const p = iso.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+  const h12 = (h) => { const x = h % 12 || 12; return `${x}${h < 12 || h === 24 ? ' am' : ' pm'}`; };
+  const hourRange = (h) => {
+    const a = h12(h), b = h12(h + 1);
+    return a.slice(-2) === b.slice(-2) ? `${a.replace(/ [ap]m/, '')} to ${b}` : `${a} to ${b}`;
+  };
+  function dayPhrase(R) {
+    if (R.scope === 'all') return R.days.length === 1 ? 'so far' : `over ${R.days.length} days`;
+    if (R.day === R.today) return 'today';
+    const y = dateOf(R.today); y.setDate(y.getDate() - 1);
+    if (dateOf(R.day).getTime() === y.getTime()) return 'yesterday';
+    return `on ${dateOf(R.day).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+  }
+  function dayLabel(R) {
+    if (R.scope === 'all') return `${R.days.length} ${R.days.length === 1 ? 'day' : 'days'} in total`;
+    const d = dateOf(R.day).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    return R.day === R.today ? `Today, ${d}` : d;
+  }
+  function timeWords(sec) {
+    const total = Math.round(sec / 60);
+    if (total < 1) return 'under a minute';
+    const h = Math.floor(total / 60), m = total % 60;
+    return `${h ? `${h} ${h === 1 ? 'hour' : 'hours'} ` : ''}${m || !h ? `${m} ${m === 1 ? 'minute' : 'minutes'}` : ''}`.trim();
+  }
+  const clockText = (t) => { const h = Math.floor(t / 60), m = t % 60; return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
+
+  /* ---------- states ---------- */
+  function showState(title, text, retry) {
+    $('report').hidden = true;
+    $('state').hidden = false;
+    $('state').innerHTML = `<h1>${esc(title)}</h1>${text ? `<p>${esc(text)}</p>` : ''}${retry ? '<button type="button" id="retryBtn">Try again</button>' : ''}`;
+    if (retry) $('retryBtn').addEventListener('click', () => load());
+  }
+
+  /* ---------- rendering ---------- */
+  function fullHours(R) {
+    const byHour = new Map(R.hours.map((h) => [h.h, h]));
+    let first = R.hours.length ? R.hours[0].h : 9;
+    let last = R.hours.length ? R.hours[R.hours.length - 1].h : 18;
+    while (last - first + 1 < 8) { if (first > 0) first -= 1; if (last - first + 1 < 8 && last < 23) last += 1; }
+    const out = [];
+    for (let h = first; h <= last; h += 1) out.push(byHour.get(h) || { h, n: 0, best: 0 });
+    return out;
+  }
+  function render() {
+    const R = state.data, phrase = dayPhrase(R);
+    $('state').hidden = true;
+    $('report').hidden = false;
+    $('dayControls').hidden = false;
+
+    const index = R.days.indexOf(R.day);
+    $('dayLabel').textContent = dayLabel(R);
+    $('dayPrev').disabled = R.scope === 'all' || index <= 0;
+    $('dayNext').disabled = R.scope === 'all' || index === -1 || index >= R.days.length - 1;
+    $('dayAll').setAttribute('aria-pressed', String(R.scope === 'all'));
+
+    const isLive = R.scope === 'day' && R.day === R.today;
+    $('liveDot').classList.toggle('off', !isLive);
+    $('liveText').textContent = isLive ? 'Still counting. Updates as games finish.' : (R.scope === 'all' ? 'All days so far.' : 'Final numbers.');
+    $('dayDef').textContent = `Midnight to midnight in ${R.time_zone.replace(/_/g, ' ')}. Today's numbers keep updating until midnight.`;
+
+    const notes = [];
+    if (R.quit) notes.push(`${fmt(R.quit)} ${R.quit === 1 ? 'game was' : 'games were'} quit early.`);
+    if (R.flagged) notes.push(`${fmt(R.flagged)} ${R.flagged === 1 ? 'game is' : 'games are'} hidden because the numbers looked impossible.`);
+    $('hiddenNote').textContent = notes.join(' ');
+
+    if (!R.games) {
+      $('repHero').textContent = isLive ? 'No one has finished a game yet today.' : `No games ${phrase}.`;
+      $('repSub').textContent = R.visits ? `The game was opened ${fmt(R.visits)} ${R.visits === 1 ? 'time' : 'times'}.` : '';
+      $('detail').hidden = true;
+      return;
+    }
+    $('detail').hidden = false;
+    $('repHero').innerHTML = `<b>${fmt(R.players)}</b> ${R.players === 1 ? 'person' : 'people'} played Fleet Invaders ${esc(phrase)}.`;
+    $('repSub').textContent = `They played ${fmt(R.games)} ${R.games === 1 ? 'game' : 'games'}, adding up to ${timeWords(R.play_seconds)} of play. The best score was ${fmt(R.top.score)}, by ${R.top.name}.`;
+    $('repFacts').innerHTML = [
+      ['Came back for more', fmt(R.returning), `${R.returning === 1 ? 'player' : 'players'} played more than once`],
+      ['Average accuracy', `${R.avg_accuracy}%`, 'across all games'],
+      ['Longest combo', `×${R.best_combo.value}`, `by ${esc(R.best_combo.name)}`],
+      ['Bus parts destroyed', fmt(R.kills), `${fmt(R.powerups)} power-ups collected`],
+    ].map((f) => `<div><dt>${f[0]}</dt><dd>${f[1]}<small>${f[2]}</small></dd></div>`).join('');
+
+    const hours = fullHours(R);
+    const busy = hours.reduce((a, b) => (b.n > a.n ? b : a), hours[0]);
+    $('dayTitle').innerHTML = `<b>${esc(hourRange(busy.h))}</b> was the busiest hour, with ${fmt(busy.n)} ${busy.n === 1 ? 'game' : 'games'}.`;
+    drawChart(R, hours, busy);
+    $('dayTable').innerHTML = `<table><thead><tr><th>Hour</th><th>Games</th><th>Best score</th></tr></thead><tbody>${hours.map((h) => `<tr><td>${esc(hourRange(h.h))}</td><td>${h.n}</td><td>${h.n ? fmt(h.best) : 'None'}</td></tr>`).join('')}</tbody></table>`;
+
+    const beat = R.cleared[5];
+    $('routeTitle').innerHTML = `<b>${fmt(beat)}</b> of ${fmt(R.players)} ${R.players === 1 ? 'player' : 'players'} beat the Broken Elevator.`;
+    renderRoute(R);
+
+    const inputs = [['Keyboard and mouse', R.inputs.keyboard], ['Touch', R.inputs.touch], ['Controller', R.inputs.controller]];
+    const topInput = inputs.slice().sort((a, b) => b[1] - a[1])[0][0];
+    $('inputTitle').textContent = `Most games were played by ${topInput === 'Touch' ? 'touch' : topInput === 'Controller' ? 'controller' : 'keyboard and mouse'}.`;
+    $('inputBars').innerHTML = inputs.map(([label, n]) => {
+      const pct = R.games ? Math.round((n / R.games) * 100) : 0;
+      return `<li><span>${label}</span><span>${pct}% · ${fmt(n)} ${n === 1 ? 'game' : 'games'}</span><i><b style="width:${pct}%"></b></i></li>`;
+    }).join('');
+    $('topFive').innerHTML = R.top_players.map((p, i) => `<li><span class="n">${i + 1}</span><span aria-hidden="true">${esc(p.avatar || '')}</span><span class="nm">${esc(p.name)}</span><span class="sc">${fmt(p.score)}</span></li>`).join('');
+
+    drawCard(R, beat);
+    const top3 = R.top_players.slice(0, 3);
+    const opener = R.scope === 'all'
+      ? `${fmt(R.players)} ${R.players === 1 ? 'person' : 'people'} took on Fleet Invaders ${phrase}`
+      : `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} ${fmt(R.players)} ${R.players === 1 ? 'person' : 'people'} took on Fleet Invaders`;
+    $('postText').textContent = `${opener}, the arcade game we built at Fleet Zero.\n\n${fmt(R.games)} ${R.games === 1 ? 'game' : 'games'}. ${fmt(R.kills)} bus parts destroyed. ${beat === 0 ? 'No one has beaten' : `${fmt(beat)} ${beat === 1 ? 'player' : 'players'} beat`} the Broken Elevator.\n\nTop ${top3.length}: ${top3.map((p) => `${p.name} (${fmt(p.score)})`).join(', ')}.\n\nThink you can beat them? ${location.origin}`;
+    $('copyMsg').textContent = '';
+  }
+  function renderRoute(R) {
+    const stops = [
+      { label: 'Opened the game', n: R.visits, img: null },
+      { label: 'Entered a name', n: R.players, img: 'bus_gunner' },
+      { label: 'Cleared wave 1', n: R.cleared[0], img: 'engine_invader' },
+      { label: 'Cleared wave 2', n: R.cleared[1], img: 'transmission_invader' },
+      { label: 'Cleared wave 3', n: R.cleared[2], img: 'oil_barrel_invader' },
+      { label: 'Cleared wave 4', n: R.cleared[3], img: 'wrench_tool_invader' },
+      { label: 'Cleared wave 5', n: R.cleared[4], img: 'zero_fault_drone' },
+      { label: 'Beat the Broken Elevator', n: R.cleared[5], img: 'elevator_boss_portrait' },
+    ];
+    let dropAt = -1, dropN = 0;
+    for (let i = 2; i < stops.length; i += 1) {
+      const d = stops[i - 1].n - stops[i].n;
+      if (d > dropN) { dropN = d; dropAt = i; }
+    }
+    /* Each piece of line is as wide as the share of players who rode it. */
+    const players = stops[1].n || 1;
+    const lineWidth = (n) => Math.max(3, Math.min(1, n / players) * 34);
+    $('route').innerHTML = stops.map((s, i) => {
+      const next = stops[i + 1];
+      const line = next ? `<span class="line${next.n ? '' : ' none'}" style="width:${next.n ? lineWidth(next.n).toFixed(1) : 2}px"></span>` : '';
+      const mark = s.img ? `<span class="mark"><img src="sprites/${s.img}.png" alt=""></span>` : '<span class="mark start"></span>';
+      const small = i === 0 ? (s.n === 1 ? 'visit' : 'visits') : i === 1 ? (s.n === 1 ? 'player' : 'players') : `${Math.round((s.n / players) * 100)}% of players`;
+      const note = i === dropAt ? `<div class="stop-note"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 2.2 14.6 13.5H1.4L8 2.2Z"/><path d="M8 6.4v3.4M8 11.6v.2"/></svg><span>Biggest drop. ${fmt(dropN)} ${dropN === 1 ? 'player' : 'players'} stopped here.</span></div>` : '';
+      return `<div class="stop${next ? '' : ' end'}"><div class="track" aria-hidden="true">${line}${mark}</div><div class="stop-body"><div><div class="stop-name">${s.label}</div>${note}</div><div class="stop-num">${fmt(s.n)}<small>${small}</small></div></div></div>`;
+    }).join('');
+  }
+
+  /* ---------- day chart: one hue, one axis ---------- */
+  let chartPoints = [];
+  function drawChart(R, hours, busy) {
+    const host = $('dayChart'), tip = $('dayTip');
+    const old = host.querySelector('svg');
+    if (old) old.remove();
+    tip.hidden = true;
+    const W = Math.max(280, host.clientWidth || 900), narrow = W < 560, H = narrow ? 340 : 400;
+    const m = { l: 38, r: 10, t: 96, b: 26 };
+    const first = hours[0].h, last = hours[hours.length - 1].h + 1;
+    const sx = (min) => m.l + ((min / 60 - first) / (last - first)) * (W - m.l - m.r);
+    const maxScore = Math.max(1000, R.dots.reduce((a, d) => Math.max(a, d.s), 0));
+    const step = maxScore <= 5000 ? 1000 : maxScore <= 25000 ? 5000 : 10000;
+    const yMax = Math.ceil(maxScore / step) * step;
+    const sy = (v) => H - m.b - (v / yMax) * (H - m.b - m.t);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Games through the day. The busiest hour is ${esc(hourRange(busy.h))} with ${busy.n} games. The top score is ${fmt(R.top.score)}.">`;
+    s += `<text class="cap" x="${m.l}" y="13">Games each hour</text>`;
+    const cell = (W - m.l - m.r) / hours.length, maxN = Math.max(1, busy.n);
+    hours.forEach((h, i) => {
+      const op = h.n ? 0.07 + 0.93 * Math.pow(h.n / maxN, 1.3) : 0.04, x = m.l + i * cell;
+      s += `<rect x="${(x + 1).toFixed(1)}" y="21" width="${(cell - 2).toFixed(1)}" height="30" rx="3" fill="#B8FF38" opacity="${op.toFixed(2)}"/>`;
+      if (cell >= 20) s += `<text class="cell" x="${(x + cell / 2).toFixed(1)}" y="41" text-anchor="middle" style="fill:${op > 0.55 ? '#0B1400' : '#F3F7EC'}">${h.n}</text>`;
+    });
+    s += `<text class="cap" x="${m.l}" y="78">Score of each game</text>`;
+    for (let v = 0; v <= yMax; v += step) {
+      const y = sy(v);
+      s += `<line x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}" stroke="rgba(243,247,236,${v === 0 ? '.24' : '.09'})"/>`;
+      s += `<text x="${m.l - 7}" y="${y + 4}" text-anchor="end">${v >= 1000 ? `${v / 1000}k` : v}</text>`;
+    }
+    const labelEvery = Math.ceil((last - first) / (narrow ? 5 : 11));
+    for (let h = first; h <= last; h += labelEvery) {
+      s += `<text x="${sx(h * 60)}" y="${H - 7}" text-anchor="${h === first ? 'start' : h >= last ? 'end' : 'middle'}">${h12(h)}</text>`;
+    }
+    chartPoints = R.dots.map((d) => ({ x: sx(d.t), y: sy(d.s), d }));
+    const top = chartPoints.reduce((a, p) => (!a || p.d.s > a.d.s ? p : a), null);
+    const radius = narrow ? 3 : 3.75;
+    chartPoints.forEach((p) => {
+      if (p !== top) s += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${radius}" fill="#B8FF38" fill-opacity=".62" stroke="#050705" stroke-width="1"/>`;
+    });
+    if (top) {
+      s += `<circle cx="${top.x.toFixed(1)}" cy="${top.y.toFixed(1)}" r="6.5" fill="#B8FF38" stroke="#050705" stroke-width="2"/>`;
+      const end = top.x > W * 0.62;
+      s += `<text class="lab" x="${(top.x + (end ? -11 : 11)).toFixed(1)}" y="${(top.y + 4.5).toFixed(1)}" text-anchor="${end ? 'end' : 'start'}" paint-order="stroke" stroke="#050705" stroke-width="3">${esc(top.d.n)} ${fmt(top.d.s)}</text>`;
+    }
+    s += '</svg>';
+    tip.insertAdjacentHTML('beforebegin', s);
+    const svg = host.querySelector('svg');
+    const move = (e) => {
+      const rect = svg.getBoundingClientRect(), k = W / rect.width, mx = (e.clientX - rect.left) * k, my = (e.clientY - rect.top) * k;
+      let best = null, bd = 26 * 26;
+      chartPoints.forEach((p) => { const d = (p.x - mx) ** 2 + (p.y - my) ** 2; if (d < bd) { bd = d; best = p; } });
+      if (!best) { tip.hidden = true; return; }
+      tip.hidden = false;
+      tip.textContent = `${best.d.n} · ${fmt(best.d.s)} · ${clockText(best.d.t)}`;
+      const tw = tip.offsetWidth, px = clamp(best.x / k - tw / 2, 0, rect.width - tw), py = Math.max(0, best.y / k - 38);
+      tip.style.transform = `translate(${px.toFixed(0)}px,${py.toFixed(0)}px)`;
+    };
+    svg.addEventListener('pointermove', move);
+    svg.addEventListener('pointerdown', move);
+    svg.addEventListener('pointerleave', () => { tip.hidden = true; });
+  }
+
+  /* ---------- LinkedIn image ---------- */
+  async function drawCard(R, beat) {
+    const canvas = $('liCard'), ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const ready = document.fonts ? Promise.all([document.fonts.load('600 92px "Barlow Condensed"'), document.fonts.load('500 24px Barlow')]).catch(() => {}) : Promise.resolve();
+    const routeSprites = ['bus_gunner', 'engine_invader', 'transmission_invader', 'oil_barrel_invader', 'wrench_tool_invader', 'zero_fault_drone', 'elevator_boss_portrait'];
+    const [boss, sprites] = await Promise.all([loadImage('elevator_boss_portrait'), Promise.all(routeSprites.map(loadImage)), ready]);
+    if (state.data !== R) return;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    const big = '600 92px "Barlow Condensed","Arial Narrow",sans-serif';
+    const lines = [[fmt(R.players), R.players === 1 ? ' player.' : ' players.'], [fmt(R.games), R.games === 1 ? ' game.' : ' games.'], [fmt(beat), ' beat the'], ['', 'Broken Elevator.']];
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.font = big;
+    lines.forEach(([num, rest], i) => {
+      const y = 132 + i * 96;
+      ctx.fillStyle = '#B8FF38'; ctx.fillText(num, 60, y);
+      ctx.fillStyle = '#F3F7EC'; ctx.fillText(rest, 60 + ctx.measureText(num).width, y);
+    });
+    /* The report's route line: each piece as wide as the share of players who rode it. */
+    const rx0 = 88, rStep = 96, ry = 486, share = Math.max(R.players, 1);
+    R.cleared.slice(0, 6).forEach((n, i) => {
+      const w = n ? Math.max(3, Math.min(1, n / share) * 22) : 2;
+      ctx.fillStyle = n ? '#B8FF38' : 'rgba(243,247,236,.22)';
+      ctx.fillRect(rx0 + i * rStep, ry - w / 2, rStep, w);
+    });
+    sprites.forEach((img, i) => {
+      if (!img) return;
+      const cx = rx0 + i * rStep, box = 56, k = Math.min(box / img.naturalWidth, box / img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k;
+      /* A black glow cuts the sprite's outline out of the line. */
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 7;
+      for (let pass = 0; pass < 3; pass += 1) ctx.drawImage(img, cx - w / 2, ry - h / 2, w, h);
+      ctx.shadowBlur = 0;
+    });
+    const stamp = R.scope === 'all' ? `${R.days.length} ${R.days.length === 1 ? 'day' : 'days'}` : dateOf(R.day).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    ctx.font = '500 24px Barlow,"Segoe UI",sans-serif'; ctx.fillStyle = '#AEB8A6';
+    ctx.fillText(`Fleet Invaders by Fleet Zero · ${stamp}`, 60, 572);
+    if (boss) {
+      const bw = 250, bh = bw * (boss.naturalHeight / boss.naturalWidth);
+      ctx.drawImage(boss, W - bw - 56, 40, bw, bh);
+    }
+    const x0 = 760, x1 = W - 60;
+    R.top_players.slice(0, 3).forEach((p, i) => {
+      const y = 448 + i * 54;
+      ctx.strokeStyle = 'rgba(243,247,236,.22)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, y - 36); ctx.lineTo(x1, y - 36); ctx.stroke();
+      ctx.font = '600 34px "Barlow Condensed","Arial Narrow",sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#F3F7EC';
+      ctx.fillText(p.name, x0, y);
+      ctx.textAlign = 'right'; ctx.fillStyle = '#B8FF38';
+      ctx.fillText(fmt(p.score), x1, y);
+    });
+    ctx.textAlign = 'left';
+    canvas.setAttribute('aria-label', `LinkedIn image: ${R.players} players, ${R.games} games, ${beat} beat the Broken Elevator.`);
+  }
+  $('saveBtn').addEventListener('click', () => {
+    const R = state.data;
+    $('liCard').toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `fleet-invaders-${R.scope === 'all' ? 'all-days' : R.day}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }, 'image/png');
+  });
+  $('copyBtn').addEventListener('click', () => {
+    const msg = $('copyMsg');
+    const fallback = () => {
+      const sel = getSelection(), range = document.createRange();
+      range.selectNodeContents($('postText'));
+      sel.removeAllRanges(); sel.addRange(range);
+      msg.textContent = 'Text selected. Press Ctrl+C to copy.';
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText($('postText').textContent).then(() => { msg.textContent = 'Copied.'; }, fallback);
+    } else fallback();
+  });
+
+  /* ---------- loading ---------- */
+  async function load(quiet) {
+    if (!token) {
+      showState('This page needs its private link.', 'Open the full link you were given. It ends with a long code.');
+      return;
+    }
+    const request = ++state.request;
+    try {
+      const R = await FleetData.report(token, state.day, state.all);
+      if (request !== state.request) return;
+      if (!R || !R.ok) {
+        showState('This link does not work.', 'It may have been replaced with a new one. Ask whoever set up the report for the latest link.');
+        return;
+      }
+      if (!state.all && !state.day) state.day = R.today;
+      state.data = R;
+      render();
+    } catch (e) {
+      if (request !== state.request || (quiet && state.data)) return;
+      showState('Could not load the report.', 'Check your connection and try again.', true);
+    }
+  }
+  function moveDay(step) {
+    const R = state.data, i = R.days.indexOf(R.day);
+    if (i < 0) return;
+    state.day = R.days[clamp(i + step, 0, R.days.length - 1)];
+    state.all = false;
+    load();
+  }
+  $('dayPrev').addEventListener('click', () => moveDay(-1));
+  $('dayNext').addEventListener('click', () => moveDay(1));
+  $('dayAll').addEventListener('click', () => {
+    state.all = !state.all;
+    if (!state.all && state.data) state.day = state.data.today;
+    load();
+  });
+  let resizeTimer;
+  addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const R = state.data;
+      if (!R || !R.games) return;
+      const hours = fullHours(R);
+      drawChart(R, hours, hours.reduce((a, b) => (b.n > a.n ? b : a), hours[0]));
+    }, 120);
+  });
+  setInterval(() => {
+    const R = state.data;
+    if (R && !document.hidden && R.scope === 'day' && R.day === R.today) load(true);
+  }, REFRESH_MS);
+  load();
+})();
+</script>
+</body>
+</html>

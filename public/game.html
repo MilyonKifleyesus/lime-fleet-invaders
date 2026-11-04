@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Fleet Invaders — Fleet Zero Prodaction</title>
+<title>Fleet Invaders — Fleet Zero Production</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{background:transparent;width:100%;height:100%;overflow:hidden;font-family:'Courier New',monospace;-webkit-tap-highlight-color:transparent}
@@ -336,6 +336,10 @@
     #tournamentOverlay.gamepad-mode .t-actions .t-btn{font-size:11px;padding-inline:4px}
   }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=Doto:wght@900&display=swap">
+<link rel="stylesheet" href="fleet-results.css">
 </head>
 <body>
 <canvas id="gameCanvas"></canvas>
@@ -350,9 +354,16 @@
   <h1>TOURNAMENT MODE</h1>
   <p class="t-sub">FLEET INVADERS — UP TO 8 PLAYERS</p>
   <div id="tPanel">
+    <div id="entryInvaders" aria-hidden="true">
+      <img src="sprites/engine_invader.png" alt="">
+      <img src="sprites/transmission_invader.png" alt="">
+      <img src="sprites/oil_barrel_invader.png" alt="">
+      <img src="sprites/wrench_tool_invader.png" alt="">
+      <img src="sprites/zero_fault_drone.png" alt="">
+    </div>
     <header class="panel-head">
       <p class="eyebrow">TOURNAMENT SETUP</p>
-      <h2>Build your crew</h2>
+      <h2 id="setupHeading">Build your crew</h2>
       <p class="panel-copy">Choose an avatar, enter a name, and add at least two players.</p>
     </header>
     <div id="entryCharacters" aria-hidden="true">
@@ -384,12 +395,13 @@
       </div>
     </div>
     <p id="emojiPickerLabel">CHOOSE YOUR AVATAR</p>
-    <div id="emojiPicker"></div>
     <label class="field-label" for="playerNameInput">PLAYER NAME</label>
     <div class="t-row">
-      <input id="playerNameInput" type="text" maxlength="16" placeholder="ENTER PLAYER NAME" autocomplete="off" spellcheck="false">
+      <input id="playerNameInput" type="text" maxlength="16" placeholder="ENTER PLAYER NAME" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go" aria-describedby="nameHint">
       <button class="t-btn" id="addPlayerBtn">+ ADD</button>
     </div>
+    <p id="nameHint" role="status"></p>
+    <div id="emojiPicker"></div>
     <div id="controllerNamePad">
       <p class="pad-label" id="controllerPadLabel">CONTROLLER NAME PAD — A SELECT / B DELETE</p>
       <div id="controllerKeys"></div>
@@ -403,11 +415,20 @@
     <ul id="playerList"></ul>
     <div class="t-actions">
       <button class="t-btn" id="startTournamentBtn" disabled>▶ START TOURNAMENT</button>
-      <button class="t-btn dim" id="soloPlayBtn">SOLO PLAY</button>
       <button class="t-btn dim" id="backSetupBtn">BACK</button>
+    </div>
+    <div id="soloArea">
+      <button class="fi-btn primary" type="button" id="soloStartBtn">Start game <kbd>Enter</kbd></button>
+      <div class="fi-links">
+        <button class="fi-link" type="button" id="showTournamentBtn">Playing with friends? Tournament</button>
+        <button class="fi-link" type="button" id="showBoardBtn">See the leaderboard</button>
+      </div>
+      <p id="nameNotice">Your name and score show on the leaderboard. Top scores may be shared on LinkedIn.</p>
     </div>
   </div>
 </div>
+<script src="fleet-data.js"></script>
+<script src="fleet-results.js"></script>
 <script>
 'use strict';
 
@@ -499,7 +520,7 @@ const C={ bg:'#000', lime:'#B8FF38', limeDim:'#8DB64C', limeGlow:'#92FF22', whit
   gray:'#2A2A2A', orange:'#FFB000', red:'#FF3030', yellow:'#FFFF00', blue:'#00BFFF', cyan:'#00FFFF' };
 
 /* ============================== STATE =============================== */
-const STATE={TITLE:0,PLAYING:1,PAUSED:2,GAME_OVER:3,GAMEOVER:3,VICTORY:4,WAVE_INTRO:5,CRASH_WARNING:6,PLAYER_INTRO:7,LEADERBOARD:8,MODE_SELECT:9,WELCOME:10,HOW_TO_PLAY:11};
+const STATE={TITLE:0,PLAYING:1,PAUSED:2,GAME_OVER:3,GAMEOVER:3,VICTORY:4,WAVE_INTRO:5,CRASH_WARNING:6,PLAYER_INTRO:7,LEADERBOARD:8,NAME_ENTRY:9,WELCOME:10,HOW_TO_PLAY:11};
 let gs=STATE.TITLE;
 let score=0, displayScore=0, fleetHP=3, wave=1;
 const TOTAL_WAVES=6;
@@ -552,7 +573,11 @@ const playerNameInput=document.getElementById('playerNameInput');
 const addPlayerBtn=document.getElementById('addPlayerBtn');
 const playerListEl=document.getElementById('playerList');
 const startTournamentBtn=document.getElementById('startTournamentBtn');
-const soloPlayBtn=document.getElementById('soloPlayBtn');
+const soloStartBtn=document.getElementById('soloStartBtn');
+const showTournamentBtn=document.getElementById('showTournamentBtn');
+const showBoardBtn=document.getElementById('showBoardBtn');
+const nameHint=document.getElementById('nameHint');
+const setupHeading=document.getElementById('setupHeading');
 const tournamentErr=document.getElementById('tournamentErr');
 const playerCount=document.getElementById('playerCount');
 const emojiPickerEl=document.getElementById('emojiPicker');
@@ -624,10 +649,13 @@ scheduleEntryBlink('.entry-black .entry-eye');
 scheduleEntryPeek();
 
 const AVATARS=['🚀','👾','🤖','🦁','🔥','💀','🌙','👽','🦄','🐲','⭐','🎮','💥','🦊','🐸','🤠','👻','🦅','🏆','⚡'];
+const SOLO_AVATARS=8; // The name screen offers only the first few, so the name stays the focus.
 let selectedEmoji=AVATARS[0];
 entrySelectedAvatar.textContent=selectedEmoji;
+function avatarCount(){ return setupMode==='solo'?SOLO_AVATARS:AVATARS.length; }
 function setSelectedAvatar(index){
-  const safeIndex=(index+AVATARS.length)%AVATARS.length;
+  const count=avatarCount();
+  const safeIndex=(index+count)%count;
   selectedEmoji=AVATARS[safeIndex];
   entrySelectedAvatar.textContent=selectedEmoji;
   emojiPickerEl.querySelectorAll('span').forEach((s,i)=>s.classList.toggle('sel',i===safeIndex));
@@ -649,7 +677,12 @@ function setSelectedAvatar(index){
 
 const CONTROLLER_NAME_KEYS='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('').concat(['SPACE','DEL','ADD']);
 let setupSection=0, setupAvatarIndex=0, setupKeyIndex=0, setupActionIndex=0;
-const setupActionButtons=[startTournamentBtn,soloPlayBtn,backSetupBtn];
+let setupMode='solo'; // 'solo' | 'tournament'
+function setupActions(){
+  return setupMode==='solo'?[soloStartBtn,showTournamentBtn,showBoardBtn]:[startTournamentBtn,backSetupBtn];
+}
+// Solo has its own Start button, so the pad drops the last key (ADD).
+function padKeyCount(){ return setupMode==='solo'?CONTROLLER_NAME_KEYS.length-1:CONTROLLER_NAME_KEYS.length; }
 (function buildControllerNamePad(){
   CONTROLLER_NAME_KEYS.forEach(label=>{
     const btn=document.createElement('button');
@@ -664,17 +697,19 @@ const setupActionButtons=[startTournamentBtn,soloPlayBtn,backSetupBtn];
 function setControllerName(value){
   playerNameInput.value=value.slice(0,16);
   pulseEntryTyping();
+  updateNameHint();
 }
 function activateControllerNameKey(label){
   if(label==='DEL') setControllerName(playerNameInput.value.slice(0,-1));
   else if(label==='SPACE') setControllerName(playerNameInput.value+' ');
-  else if(label==='ADD') addPlayer();
+  else if(label==='ADD') submitSetupName();
   else setControllerName(playerNameInput.value+label);
 }
 function updateSetupSelection(){
   emojiPickerEl.querySelectorAll('span').forEach((sp,i)=>sp.classList.toggle('pad-selected',setupSection===0&&i===setupAvatarIndex));
   controllerKeysEl.querySelectorAll('button').forEach((btn,i)=>btn.classList.toggle('selected',setupSection===1&&i===setupKeyIndex));
-  setupActionButtons.forEach((btn,i)=>btn.classList.toggle('pad-selected',setupSection===2&&i===setupActionIndex));
+  [soloStartBtn,showTournamentBtn,showBoardBtn,startTournamentBtn,backSetupBtn].forEach(btn=>btn.classList.remove('pad-selected'));
+  setupActions().forEach((btn,i)=>btn.classList.toggle('pad-selected',setupSection===2&&i===setupActionIndex));
 }
 function enableGamepadSetup(){
   tournamentOverlay.classList.add('gamepad-mode');
@@ -683,13 +718,22 @@ function enableGamepadSetup(){
   const padLabel=document.getElementById('controllerPadLabel');
   if(padLabel) padLabel.textContent=`CONTROLLER NAME PAD — ${lb.confirm} SELECT / ${lb.back} DELETE`;
   const helpEl=document.getElementById('controllerHelp');
-  if(helpEl) helpEl.textContent=`D-PAD MOVE | ${lb.confirm} SELECT | X ADD | ${lb.music} REMOVE | ${lb.pause} BEGIN | ${lb.back} BACK`;
+  if(helpEl) helpEl.textContent=setupMode==='solo'
+    ?`D-pad moves · ${lb.confirm} picks · ${lb.back} deletes · ${lb.pause} plays`
+    :`D-PAD MOVE | ${lb.confirm} SELECT | X ADD | ${lb.music} REMOVE | ${lb.pause} BEGIN | ${lb.back} BACK`;
+  soloStartBtn.querySelector('kbd').textContent=lb.pause;
+  // The pad only has A-Z and 0-9, so do not promise every language here.
+  if(nameHint.textContent===DEFAULT_NAME_HINT) setNameHint(PAD_NAME_HINT);
   updateSetupSelection();
 }
-function closeTournamentSetup(){
+function hideSetupOverlay(){
   tournamentOverlay.classList.remove('visible','gamepad-mode');
   controllerNamePad.classList.remove('visible');
-  gs=STATE.MODE_SELECT;
+}
+function closeTournamentSetup(){
+  if(setupMode==='tournament'){ openNameEntry(); return; }
+  hideSetupOverlay();
+  gs=STATE.TITLE;
 }
 
 function renderPlayerList(){
@@ -697,16 +741,22 @@ function renderPlayerList(){
   tournamentPlayers.forEach((p,i)=>{
     const li=document.createElement('li');
     const badge=p.finished?`<span class="pdone">✓ DONE</span>`:`<span class="pready">READY</span>`;
-    li.innerHTML=`<span><span class="pnum">${i+1}.</span><span style="margin-right:6px">${p.emoji||'🚀'}</span>${p.name}${badge}</span><button onclick="removePlayer(${i})">✕</button>`;
+    li.innerHTML=`<span><span class="pnum">${i+1}.</span><span style="margin-right:6px">${p.emoji||'🚀'}</span>${escapeHtml(p.name)}${badge}</span><button onclick="removePlayer(${i})">✕</button>`;
     playerListEl.appendChild(li);
   });
   playerCount.textContent=`${tournamentPlayers.length} / 8`;
   startTournamentBtn.disabled=tournamentPlayers.length<2;
 }
-function addPlayer(){
-  const name=playerNameInput.value.trim().toUpperCase().replace(/[^A-Z0-9 _\-]/g,'');
-  if(!name){tournamentErr.textContent='ENTER A NAME'; return;}
+function escapeHtml(text){
+  return String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+async function addPlayer(){
+  const name=FleetData.cleanName(playerNameInput.value);
+  const problem=FleetData.nameError(name);
+  if(problem){tournamentErr.textContent=FleetData.nameMessage(problem); return;}
   if(tournamentPlayers.length>=8){tournamentErr.textContent='MAX 8 PLAYERS'; return;}
+  const verdict=await FleetData.checkName(name,1200);
+  if(verdict&&!verdict.ok){tournamentErr.textContent=FleetData.nameMessage(verdict.error); return;}
   if(tournamentPlayers.some(p=>p.name===name)){tournamentErr.textContent='NAME ALREADY IN USE'; return;}
   tournamentErr.textContent='';
   tournamentPlayers.push({name,emoji:selectedEmoji,score:0,stats:null,longestCombo:0,finished:false});
@@ -719,35 +769,40 @@ function removePlayer(i){
   renderPlayerList();
 }
 addPlayerBtn.addEventListener('click',addPlayer);
-playerNameInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer();}});
+playerNameInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault(); if(!e.repeat) submitSetupName();}});
 playerNameInput.addEventListener('focus',()=>setEntryTyping(true));
 playerNameInput.addEventListener('blur',()=>setEntryTyping(false));
-playerNameInput.addEventListener('input',pulseEntryTyping);
+playerNameInput.addEventListener('input',()=>{pulseEntryTyping(); updateNameHint();});
 startTournamentBtn.addEventListener('click',()=>{
   if(tournamentPlayers.length<2) return;
   tournamentMode=true; currentPlayerIndex=0;
-  tournamentOverlay.classList.remove('visible','gamepad-mode');
-  controllerNamePad.classList.remove('visible');
+  hideSetupOverlay();
   gs=STATE.PLAYER_INTRO;
 });
-soloPlayBtn.addEventListener('click',()=>{
-  tournamentMode=false; tournamentPlayers=[];
-  tournamentOverlay.classList.remove('visible','gamepad-mode');
-  controllerNamePad.classList.remove('visible');
-  startGame();
-});
 backSetupBtn.addEventListener('click',closeTournamentSetup);
-function openTournamentSetup(){
-  tournamentPlayers=[]; currentPlayerIndex=0;
-  setupSection=0; setupAvatarIndex=setSelectedAvatar(0); setupKeyIndex=0; setupActionIndex=0;
-  playerNameInput.value='';
-  renderPlayerList();
+function showSetupPanel(mode,avatarIndex){
+  setupMode=mode;
+  gs=STATE.NAME_ENTRY;
+  const solo=mode==='solo';
+  tournamentOverlay.classList.toggle('solo',solo);
+  setupHeading.textContent=solo?"Who's playing?":'Build your crew';
+  playerNameInput.placeholder=solo?'YOUR NAME':'ENTER PLAYER NAME';
+  soloStartBtn.querySelector('kbd').textContent='Enter';
+  setupSection=0; setupAvatarIndex=setSelectedAvatar(avatarIndex); setupKeyIndex=0; setupActionIndex=0;
+  tournamentErr.textContent='';
   tournamentOverlay.classList.add('visible');
   tournamentOverlay.classList.remove('gamepad-mode');
   controllerNamePad.classList.remove('visible');
+  updateSetupSelection();
   pulseEntryTyping();
   updateEntryCharacters();
   setTimeout(()=>playerNameInput.focus(),60);
+}
+function openTournamentSetup(){
+  tournamentPlayers=[]; currentPlayerIndex=0;
+  playerNameInput.value='';
+  renderPlayerList();
+  showSetupPanel('tournament',0);
 }
 function saveTournamentScore(){
   const p=tournamentPlayers[currentPlayerIndex];
@@ -765,30 +820,172 @@ function resetTournament(){
   gs=STATE.TITLE;
 }
 
-// Mode select button hit regions (relative to BASE_W/2, BASE_H/2)
-function getModeSelectBtns(){
-  const cy=BASE_H/2+20, bh=148, bw=Math.min(230, BASE_W*0.28);
-  const gap=24;
+/* ==================== SOLO PLAYER AND SAVED GAMES ==================== */
+// A shared screen does not remember names, and goes back to the name screen by itself.
+// ?screen=shared turns this on from the start. Two different names on one page turn it on too.
+const pageParams=new URLSearchParams(location.search);
+let sharedScreen=pageParams.get('screen')==='shared';
+let lastSoloName=null;
+// Open with ?view=board to show only the live leaderboard, for example on a TV.
+const BOARD_ONLY_SCREEN=pageParams.get('view')==='board';
+const NAME_STORE='fleetInvadersName', AVATAR_STORE='fleetInvadersAvatar';
+const DEFAULT_NAME_HINT='Letters from any language, up to 16.';
+const PAD_NAME_HINT='Letters and numbers, up to 16.';
+let currentPlayer=null;   // { name, emoji, previousBest }
+let activeRun=null;       // The game being played, until it is saved.
+let lastRunStats=null;
+let pendingStanding=Promise.resolve(null);
+let nameCheckTimer=null, nameCheckId=0, knownBest=null;
+
+function readStored(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } }
+function writeStored(key,value){ try{ localStorage.setItem(key,value); }catch(e){} }
+function removeStored(key){ try{ localStorage.removeItem(key); }catch(e){} }
+
+function setNameHint(text,kind){
+  nameHint.textContent=text;
+  nameHint.className=kind||'';
+  playerNameInput.setAttribute('aria-invalid',kind==='err'?'true':'false');
+}
+function updateNameHint(){
+  if(setupMode!=='solo') return;
+  knownBest=null;
+  clearTimeout(nameCheckTimer);
+  const id=++nameCheckId;
+  const name=FleetData.cleanName(playerNameInput.value);
+  const usual=tournamentOverlay.classList.contains('gamepad-mode')?PAD_NAME_HINT:DEFAULT_NAME_HINT;
+  if(!name){ setNameHint(usual); return; }
+  const problem=FleetData.nameError(name);
+  if(problem){ setNameHint(FleetData.nameMessage(problem),'err'); return; }
+  setNameHint(usual);
+  nameCheckTimer=setTimeout(async()=>{
+    const res=await FleetData.checkName(name);
+    if(id!==nameCheckId||!res) return;
+    if(!res.ok){ setNameHint(FleetData.nameMessage(res.error),'err'); return; }
+    if(res.best!=null){
+      knownBest=res.best;
+      setNameHint(`Welcome back, ${res.name}. Your best is ${res.best.toLocaleString('en-US')}.`,'ok');
+      const avatarIndex=AVATARS.indexOf(res.avatar);
+      if(avatarIndex>=0&&avatarIndex<SOLO_AVATARS) setupAvatarIndex=setSelectedAvatar(avatarIndex);
+    }
+  },300);
+}
+function openNameEntry(prefill){
+  tournamentMode=false; tournamentPlayers=[]; currentPlayerIndex=0;
+  const remembered=sharedScreen?null:readStored(NAME_STORE);
+  playerNameInput.value=prefill===undefined?(remembered||''):prefill;
+  const storedAvatar=sharedScreen?-1:AVATARS.indexOf(readStored(AVATAR_STORE));
+  showSetupPanel('solo',storedAvatar>=0&&storedAvatar<SOLO_AVATARS?storedAvatar:Math.floor(Math.random()*SOLO_AVATARS));
+  updateNameHint();
+  if(usedInput==='controller') enableGamepadSetup();
+}
+function submitSetupName(){
+  if(setupMode==='solo') submitSoloName(); else addPlayer();
+}
+async function submitSoloName(){
+  if(soloStartBtn.disabled) return;
+  const name=FleetData.cleanName(playerNameInput.value);
+  const problem=FleetData.nameError(name);
+  if(problem){ setNameHint(FleetData.nameMessage(problem),'err'); playerNameInput.focus(); return; }
+  soloStartBtn.disabled=true;
+  const verdict=await FleetData.checkName(name,1200);
+  soloStartBtn.disabled=false;
+  if(verdict&&!verdict.ok){ setNameHint(FleetData.nameMessage(verdict.error),'err'); playerNameInput.focus(); return; }
+  if(!tournamentOverlay.classList.contains('visible')||setupMode!=='solo') return;
+  const previousBest=verdict&&verdict.ok?verdict.best:knownBest;
+  currentPlayer={name,emoji:selectedEmoji,previousBest};
+  // A second name on this page means people are taking turns here.
+  if(!sharedScreen&&lastSoloName&&lastSoloName!==name){
+    sharedScreen=true;
+    FleetResults.setShared(true);
+    removeStored(NAME_STORE);
+    removeStored(AVATAR_STORE);
+  }
+  lastSoloName=name;
+  if(!sharedScreen){ writeStored(NAME_STORE,name); writeStored(AVATAR_STORE,selectedEmoji); }
+  hideSetupOverlay();
+  startGame();
+}
+soloStartBtn.addEventListener('click',submitSoloName);
+showTournamentBtn.addEventListener('click',openTournamentSetup);
+let nameBeforeBoard;
+showBoardBtn.addEventListener('click',()=>{
+  nameBeforeBoard=playerNameInput.value;
+  hideSetupOverlay();
+  FleetResults.showBoard();
+});
+
+let usedInput='keyboard', gamepadPrevAxes=[];
+window.addEventListener('keydown',()=>{ usedInput='keyboard'; },true);
+window.addEventListener('pointerdown',e=>{ usedInput=e.pointerType==='touch'?'touch':'mouse'; },true);
+function noteGamepadUse(gp){
+  const pressed=gp.buttons.some((b,i)=>(b.value||0)>0.5 && !((gamepadPrevButtons[i]||0)>0.5));
+  const moved=gp.axes.some((a,i)=>Math.abs(a-(gamepadPrevAxes[i]??a))>0.25);
+  if(pressed||moved) usedInput='controller';
+  if(moved||!gamepadPrevAxes.length) gamepadPrevAxes=Array.from(gp.axes);
+}
+function inputName(){ return usedInput; }
+function isRunInProgress(){
+  return gs===STATE.PLAYING||gs===STATE.PAUSED||gs===STATE.WAVE_INTRO;
+}
+function runStats(){
   return {
-    solo:  {x:BASE_W/2-gap/2-bw, y:cy-bh/2, w:bw, h:bh},
-    tour:  {x:BASE_W/2+gap/2,    y:cy-bh/2, w:bw, h:bh},
+    score,wave,overdrive,
+    wavesCleared:stats.waves,kills:stats.kills,shots:stats.shots,hits:stats.hits,
+    longestCombo,powerups:stats.powerups,
+    durationS:Math.floor((performance.now()-stats.startTime)/1000),
+    input:inputName(),
   };
 }
-function handleModeSelectClick(mx,my){
-  const {solo,tour}=getModeSelectBtns();
-  if(mx>=solo.x&&mx<=solo.x+solo.w&&my>=solo.y&&my<=solo.y+solo.h){
-    startGame();
-  } else if(mx>=tour.x&&mx<=tour.x+tour.w&&my>=tour.y&&my<=tour.y+tour.h){
-    openTournamentSetup();
-  }
+function beginRun(){
+  const who=tournamentMode?tournamentPlayers[currentPlayerIndex]:currentPlayer;
+  if(!who){ openNameEntry(); return false; }
+  endRun('quit','RESTARTED');
+  activeRun=FleetData.newRun({name:who.name,avatar:who.emoji,mode:tournamentMode?'tournament':'solo',input:inputName()});
+  FleetData.start(activeRun);
+  return true;
 }
+function endRun(status,reason,options){
+  if(!activeRun) return Promise.resolve(null);
+  const run=activeRun;
+  activeRun=null;
+  lastRunStats=runStats();
+  return FleetData.finish(run,status,lastRunStats,reason,options);
+}
+function showResult(){
+  FleetResults.show({
+    player:{name:currentPlayer.name,avatar:currentPlayer.emoji,previousBest:currentPlayer.previousBest},
+    stats:lastRunStats,
+    standing:pendingStanding,
+  });
+}
+FleetResults.init({
+  shared:sharedScreen,
+  primaryKey(){ return usedInput==='controller'?getButtonLabels().confirm:'Enter'; },
+  onNewPlayer(){
+    FleetResults.hide();
+    currentPlayer=null;
+    FleetData.visit(sharedScreen?'shared':'own');
+    openNameEntry('');
+  },
+  onPlayAgain(){
+    FleetResults.hide();
+    const best=lastRunStats?Math.max(currentPlayer.previousBest||0,lastRunStats.score):currentPlayer.previousBest;
+    currentPlayer.previousBest=best;
+    startGame();
+  },
+  onBack(){
+    if(BOARD_ONLY_SCREEN) return;
+    FleetResults.hide();
+    openNameEntry(nameBeforeBoard);
+  },
+});
+window.addEventListener('pagehide',()=>{ endRun('quit','LEFT PAGE',{keepalive:true}); });
 
 /* ============================== INPUT =============================== */
 const keys={};
 let mouseX=BASE_W/2, mouseY=BASE_H/2, mousePressed=false, shootHeld=false, shootTimer=0;
 let lastInput='key'; // 'key' | 'mouse' | 'touch' | 'gamepad'
 let mouseMovedAt=0;
-let modeSelectChoice=0;
 let gamepadDirX=0, gamepadFireHeld=false, gamepadIndex=null, gamepadPrevButtons=[];
 let gamepadPrevNavX=0, gamepadPrevNavY=0;
 let gamepadType='generic'; // 'xbox' | 'playstation' | 'nintendo' | 'generic'
@@ -797,23 +994,25 @@ let heartbeatRumbleTimer=0;
 let bossRumbleTimer=0;
 
 window.addEventListener('keydown',e=>{
+  // Game shortcuts must never fire while someone is typing a name.
+  if(FleetResults.visible){ FleetResults.handleKey(e); return; }
+  if(tournamentOverlay.classList.contains('visible')){
+    if(e.code==='Escape') closeTournamentSetup();
+    // Enter still starts the game if the name box has lost focus.
+    else if(e.code==='Enter'&&!e.repeat&&e.target===document.body) submitSetupName();
+    return;
+  }
   keys[e.code]=true; lastInput='key';
   if(e.code==='Space'){e.preventDefault(); shootHeld=true; tryShoot();}
   if(e.code==='KeyP'){togglePause();}
   if(e.code==='KeyM'){musicOn=!musicOn;}
-  if(e.code==='KeyR'){if(!tournamentMode||!isRestartState()) restartGame();}
-  if(e.code==='Escape'&&tournamentOverlay.classList.contains('visible')) closeTournamentSetup();
-  else if(e.code==='Escape'&&gs===STATE.MODE_SELECT){gs=STATE.TITLE;}
-  else if(e.code==='Escape'&&gs===STATE.HOW_TO_PLAY){gs=STATE.TITLE;}
+  if(e.code==='KeyR'&&isRunInProgress()) restartGame();
+  if(e.code==='Escape'&&gs===STATE.HOW_TO_PLAY){gs=STATE.TITLE;}
   else if(e.code==='Escape'&&gs===STATE.WELCOME){gs=STATE.TITLE;}
-  if(gs===STATE.MODE_SELECT){
-    if(e.code==='KeyS'||e.code==='Digit1') startGame();
-    if(e.code==='KeyT'||e.code==='KeyF'||e.code==='Digit2') openTournamentSetup();
-  }
   if(e.code==='Enter'||e.code==='Space'){
     if(gs===STATE.TITLE) gs=STATE.WELCOME;
     else if(gs===STATE.WELCOME) gs=STATE.HOW_TO_PLAY;
-    else if(gs===STATE.HOW_TO_PLAY) gs=STATE.MODE_SELECT;
+    else if(gs===STATE.HOW_TO_PLAY) openNameEntry();
     else if(gs===STATE.PLAYER_INTRO) startGame();
     else if(gs===STATE.LEADERBOARD) resetTournament();
     else if(isRestartState()) restartGame();
@@ -855,8 +1054,7 @@ canvas.addEventListener('mousedown',e=>{
   mousePressed=true; shootHeld=true; lastInput='mouse'; mouseMovedAt=performance.now();
   if(gs===STATE.TITLE) gs=STATE.WELCOME;
   else if(gs===STATE.WELCOME) gs=STATE.HOW_TO_PLAY;
-  else if(gs===STATE.HOW_TO_PLAY) gs=STATE.MODE_SELECT;
-  else if(gs===STATE.MODE_SELECT) handleModeSelectClick(mouseX,mouseY);
+  else if(gs===STATE.HOW_TO_PLAY) openNameEntry();
   else if(gs===STATE.PLAYER_INTRO) startGame();
   else if(gs===STATE.LEADERBOARD) resetTournament();
   else if(isRestartState()) restartGame();
@@ -878,8 +1076,7 @@ let autoFire=false;
 function touchHandle(){
   if(gs===STATE.TITLE) gs=STATE.WELCOME;
   else if(gs===STATE.WELCOME) gs=STATE.HOW_TO_PLAY;
-  else if(gs===STATE.HOW_TO_PLAY) gs=STATE.MODE_SELECT;
-  else if(gs===STATE.MODE_SELECT) startGame();
+  else if(gs===STATE.HOW_TO_PLAY) openNameEntry();
   else if(gs===STATE.PLAYER_INTRO) startGame();
   else if(gs===STATE.LEADERBOARD) resetTournament();
   else if(isRestartState()) restartGame();
@@ -971,17 +1168,19 @@ function handleSetupNavigation(x,y){
   if(setupSection===0&&x){
     setupAvatarIndex=setSelectedAvatar(setupAvatarIndex+x);
   } else if(setupSection===0&&y){
-    if(y>0&&setupAvatarIndex+10<AVATARS.length) setupAvatarIndex=setSelectedAvatar(setupAvatarIndex+10);
+    if(y>0&&setupAvatarIndex+10<avatarCount()) setupAvatarIndex=setSelectedAvatar(setupAvatarIndex+10);
     else if(y<0&&setupAvatarIndex>=10) setupAvatarIndex=setSelectedAvatar(setupAvatarIndex-10);
     else setupSection=y>0?1:2;
   } else if(setupSection===1&&x){
-    setupKeyIndex=(setupKeyIndex+x+CONTROLLER_NAME_KEYS.length)%CONTROLLER_NAME_KEYS.length;
+    const count=padKeyCount();
+    setupKeyIndex=(setupKeyIndex+x+count)%count;
   } else if(setupSection===1&&y){
-    const nextKey=setupKeyIndex+y*10;
-    if(nextKey>=0&&nextKey<CONTROLLER_NAME_KEYS.length) setupKeyIndex=nextKey;
+    const count=padKeyCount(), nextKey=setupKeyIndex+y*10;
+    if(nextKey>=0&&nextKey<count) setupKeyIndex=nextKey;
+    else if(y>0&&setupKeyIndex<Math.floor((count-1)/10)*10) setupKeyIndex=count-1;
     else setupSection=y>0?2:0;
   } else if(setupSection===2&&x){
-    setupActionIndex=(setupActionIndex+x+setupActionButtons.length)%setupActionButtons.length;
+    setupActionIndex=(setupActionIndex+x+setupActions().length)%setupActions().length;
   } else if(setupSection===2&&y){
     setupSection=y<0?1:0;
   }
@@ -996,18 +1195,14 @@ function handleGamepadConfirm(){
     } else if(setupSection===1){
       activateControllerNameKey(CONTROLLER_NAME_KEYS[setupKeyIndex]);
     } else {
-      setupActionButtons[setupActionIndex].click();
+      setupActions()[setupActionIndex].click();
     }
     updateSetupSelection();
     return;
   }
   if(gs===STATE.TITLE){ gs=STATE.WELCOME; }
   else if(gs===STATE.WELCOME){ gs=STATE.HOW_TO_PLAY; }
-  else if(gs===STATE.HOW_TO_PLAY){ gs=STATE.MODE_SELECT; modeSelectChoice=0; }
-  else if(gs===STATE.MODE_SELECT){
-    if(modeSelectChoice===0) startGame();
-    else { openTournamentSetup(); enableGamepadSetup(); }
-  }
+  else if(gs===STATE.HOW_TO_PLAY){ openNameEntry(); enableGamepadSetup(); }
   else if(gs===STATE.PLAYER_INTRO) startGame();
   else if(gs===STATE.LEADERBOARD) resetTournament();
   else if(isRestartState()) restartGame();
@@ -1021,13 +1216,13 @@ function handleGamepadBack(){
     else closeTournamentSetup();
   } else if(gs===STATE.HOW_TO_PLAY) gs=STATE.TITLE;
   else if(gs===STATE.WELCOME) gs=STATE.TITLE;
-  else if(gs===STATE.MODE_SELECT) gs=STATE.TITLE;
   else if(gs===STATE.PAUSED) togglePause();
 }
 function updateGamepadInput(){
   const gp=getPrimaryGamepad();
   if(!gp){ gamepadDirX=0; gamepadFireHeld=false; triggerValue=0; return; }
-  controllerStatus.classList.toggle('visible',!tournamentOverlay.classList.contains('visible'));
+  noteGamepadUse(gp);
+  controllerStatus.classList.toggle('visible',!tournamentOverlay.classList.contains('visible')&&!FleetResults.visible);
 
   // Update controller type in case it changed
   if(gp.id && detectControllerType(gp)!==gamepadType) gamepadType=detectControllerType(gp);
@@ -1053,16 +1248,23 @@ function updateGamepadInput(){
   const nav=gamepadNavDirection(gp);
 
   if(gamepadDirX!==0 || fireNow || backPressed || startPressed || nav.x || nav.y) lastInput='gamepad';
-  if(tournamentOverlay.classList.contains('visible')){
+  if(FleetResults.visible){
+    if(confirmPressed||startPressed) FleetResults.primary();
+    if(backPressed) FleetResults.secondary();
+    if(nav.y) FleetResults.scrollBoard(nav.y);
+    gamepadFireHeld=false;
+  } else if(tournamentOverlay.classList.contains('visible')){
     if(nav.x||nav.y) handleSetupNavigation(nav.x,nav.y);
     if(confirmPressed) handleGamepadConfirm();
-    if(xPressed) addPlayer();
-    if(removeOrMusicPressed && tournamentPlayers.length) removePlayer(tournamentPlayers.length-1);
-    if(startPressed && !startTournamentBtn.disabled) startTournamentBtn.click();
+    if(xPressed) submitSetupName();
+    if(removeOrMusicPressed && setupMode==='tournament' && tournamentPlayers.length) removePlayer(tournamentPlayers.length-1);
+    if(startPressed){
+      if(setupMode==='solo') submitSetupName();
+      else if(!startTournamentBtn.disabled) startTournamentBtn.click();
+    }
     if(backPressed) handleGamepadBack();
     gamepadFireHeld=false;
   } else {
-    if(gs===STATE.MODE_SELECT && nav.x) modeSelectChoice=nav.x<0?0:1;
     if(confirmPressed) handleGamepadConfirm();
     if(backPressed) handleGamepadBack();
     if(startPressed){
@@ -1370,6 +1572,7 @@ function setupBoss(){
 /* ============================== FLOW ================================ */
 let waveIntroTimer=0;
 function startGame(){
+  if(!beginRun()) return;
   getAudio();
   score=0; displayScore=0; fleetHP=3; wave=1; combo=0; comboTimer=0; longestCombo=0; scorePopups=[];
   overdrive=0; crashWarningTimer=0; crashWarningReason='COLLISION'; gameOverRevealTimer=0; gameOverReason='BUS DESTROYED'; damageWarningTimer=0; damageWarningText='FLEET DAMAGE';
@@ -1387,8 +1590,8 @@ function restartGame(){
   if(tournamentMode && isRestartState()){
     saveTournamentScore();
     advanceTournament();
-  } else {
-    startGame();
+  } else if(isRunInProgress()){
+    startGame(); // Saves the unfinished game as quit, then starts again.
   }
 }
 function isRestartState(state=gs){
@@ -1422,6 +1625,7 @@ function triggerGameOver(reason='BUS DESTROYED'){
   playerBullets=[];
   clearPowerup();
   saveHi();
+  pendingStanding=endRun('finished',reason);
   gs=STATE.GAME_OVER;
 }
 function triggerCrashRestart(reason='COLLISION'){
@@ -1669,6 +1873,7 @@ function update(dt){
       gameOverRevealTimer=Math.max(0,gameOverRevealTimer-dt);
       if(gameOverRevealTimer===0){
         player.alive=false;
+        if(!tournamentMode) showResult();
       }
     }
     return;
@@ -2348,7 +2553,7 @@ function drawHUD(){
   botG.addColorStop(0,'rgba(0,0,0,0)'); botG.addColorStop(1,'rgba(0,0,0,0.80)');
   ctx.fillStyle=botG; ctx.fillRect(0,BASE_H-20,BASE_W,20);
   ctx.fillStyle='rgba(166,255,0,0.25)'; ctx.font='8px Courier New'; ctx.textAlign='left';
-  ctx.fillText('FLEET ZERO PRODACTION // FLEET DIVISION',12,BASE_H-6);
+  ctx.fillText('FLEET ZERO PRODUCTION // FLEET DIVISION',12,BASE_H-6);
   ctx.textAlign='right';
   if(gamepadIndex!==null){const lb=getButtonLabels(); ctx.fillText(`STICK MOVE  —  ${lb.fire} FIRE  —  ${lb.pause} PAUSE  —  ${lb.music} MUSIC`,BASE_W-12,BASE_H-6);}
   else ctx.fillText('A/D MOVE  —  SPACE FIRE  —  P PAUSE  —  M MUSIC',BASE_W-12,BASE_H-6);
@@ -2543,7 +2748,7 @@ function drawTitle(){
 
   // Subtitle
   ctx.fillStyle='rgba(166,255,0,0.30)'; ctx.font='bold 9px Courier New'; ctx.textAlign='center';
-  ctx.fillText('— FLEET ZERO PRODACTION —',BASE_W/2,boxY+boxH+18);
+  ctx.fillText('— FLEET ZERO PRODUCTION —',BASE_W/2,boxY+boxH+18);
 
   // ── Demo enemies with animated cards ────────────────────
   const demo=[
@@ -2610,7 +2815,7 @@ function drawTitle(){
   ctx.fillStyle='rgba(166,255,0,0.28)'; ctx.font='10px Courier New'; ctx.textAlign='center';
   ctx.fillText('SURVIVE 6 WAVES — THEN ENTER OVERDRIVE',BASE_W/2,BASE_H*0.890);
   ctx.fillStyle='rgba(166,255,0,0.18)'; ctx.font='8px Courier New';
-  ctx.fillText('FLEET ZERO PRODACTION FLEET MAINTENANCE DIVISION — SYSTEM ONLINE',BASE_W/2,BASE_H-10);
+  ctx.fillText('FLEET ZERO PRODUCTION FLEET MAINTENANCE DIVISION — SYSTEM ONLINE',BASE_W/2,BASE_H-10);
 }
 
 function drawPause(){
@@ -2919,78 +3124,6 @@ function drawWaveIntro(){
   ctx.restore();
 }
 
-function drawModeSelect(){
-  ctx.fillStyle='rgba(0,0,0,0.78)'; ctx.fillRect(0,0,BASE_W,BASE_H);
-  drawStarsParallax(); drawVignette(); drawBorder();
-  const t=performance.now()*0.001;
-  const pulse=Math.sin(t*4)*0.15+0.85;
-  ctx.textAlign='center';
-
-  // Header
-  ctx.fillStyle=C.lime; ctx.shadowBlur=20; ctx.shadowColor=C.lime;
-  ctx.font='bold 28px Courier New';
-  ctx.fillText('SELECT GAME MODE',BASE_W/2,BASE_H/2-130);
-  ctx.shadowBlur=0;
-  ctx.fillStyle='rgba(166,255,0,0.45)'; ctx.font='10px Courier New';
-  ctx.fillText('CHOOSE HOW YOU WANT TO PLAY',BASE_W/2,BASE_H/2-106);
-  // Header underline
-  const ul=180;
-  const ulG=ctx.createLinearGradient(BASE_W/2-ul,0,BASE_W/2+ul,0);
-  ulG.addColorStop(0,'rgba(166,255,0,0)'); ulG.addColorStop(0.4,'rgba(166,255,0,0.6)'); ulG.addColorStop(0.6,'rgba(166,255,0,0.6)'); ulG.addColorStop(1,'rgba(166,255,0,0)');
-  ctx.fillStyle=ulG; ctx.fillRect(BASE_W/2-ul,BASE_H/2-97,ul*2,1.5);
-
-  const {solo,tour}=getModeSelectBtns();
-  const soloHov=(mouseX>=solo.x&&mouseX<=solo.x+solo.w&&mouseY>=solo.y&&mouseY<=solo.y+solo.h)||(lastInput==='gamepad'&&modeSelectChoice===0);
-  const tourHov=(mouseX>=tour.x&&mouseX<=tour.x+tour.w&&mouseY>=tour.y&&mouseY<=tour.y+tour.h)||(lastInput==='gamepad'&&modeSelectChoice===1);
-
-  function drawModeCard(b,hov,icon,line1,line2,hint,kbd){
-    // Panel fill
-    const pG=ctx.createLinearGradient(b.x,b.y,b.x,b.y+b.h);
-    pG.addColorStop(0,hov?'rgba(26,47,13,0.98)':'rgba(9,25,17,0.98)');
-    pG.addColorStop(1,hov?'rgba(11,27,8,0.97)':'rgba(3,13,10,0.98)');
-    ctx.fillStyle=pG; ctx.fillRect(b.x,b.y,b.w,b.h);
-    // Top/bottom glow edge
-    const ew=b.w*0.78, ex=b.x+(b.w-ew)/2;
-    const eG=ctx.createLinearGradient(ex,0,ex+ew,0);
-    eG.addColorStop(0,'rgba(166,255,0,0)'); eG.addColorStop(0.2,'rgba(166,255,0,0.7)'); eG.addColorStop(0.8,'rgba(166,255,0,0.7)'); eG.addColorStop(1,'rgba(166,255,0,0)');
-    ctx.fillStyle=eG; ctx.fillRect(ex,b.y,ew,2); ctx.fillRect(ex,b.y+b.h-2,ew,2);
-    // Side border
-    ctx.strokeStyle=hov?C.lime:'rgba(166,255,0,0.3)';
-    ctx.lineWidth=hov?2:1.5;
-    if(hov){ctx.shadowBlur=18*pulse; ctx.shadowColor=C.lime;}
-    ctx.strokeRect(b.x,b.y,b.w,b.h); ctx.shadowBlur=0;
-    // L-corner chrome
-    const ca=14; ctx.save(); ctx.strokeStyle=hov?C.lime:'rgba(166,255,0,0.55)'; ctx.lineWidth=1.5;
-    if(hov){ctx.shadowBlur=10; ctx.shadowColor=C.lime;}
-    [[b.x,b.y,1,1],[b.x+b.w,b.y,-1,1],[b.x,b.y+b.h,1,-1],[b.x+b.w,b.y+b.h,-1,-1]].forEach(([cx,cy,sx,sy])=>{
-      ctx.beginPath(); ctx.moveTo(cx+sx*ca,cy); ctx.lineTo(cx,cy); ctx.lineTo(cx,cy+sy*ca); ctx.stroke();
-    });
-    ctx.shadowBlur=0; ctx.restore();
-    // Icon
-    ctx.font='32px serif'; ctx.shadowBlur=0;
-    ctx.fillText(icon,b.x+b.w/2,b.y+46);
-    // Line 1 (big label)
-    ctx.fillStyle=hov?C.lime:C.white; ctx.shadowBlur=hov?16*pulse:0; ctx.shadowColor=C.lime;
-    ctx.font=`bold 22px Courier New`; ctx.textAlign='center';
-    ctx.fillText(line1,b.x+b.w/2,b.y+84); ctx.shadowBlur=0;
-    // Line 2 (subtitle)
-    if(line2){ ctx.fillStyle=hov?C.white:C.limeDim; ctx.font='bold 14px Courier New'; ctx.fillText(line2,b.x+b.w/2,b.y+106); }
-    // Hint
-    ctx.fillStyle=hov?C.lime:'rgba(228,242,220,0.76)'; ctx.font='10px Courier New';
-    ctx.fillText(hint,b.x+b.w/2,b.y+b.h-28);
-    // Keyboard shortcut
-    ctx.fillStyle='rgba(184,255,56,0.7)'; ctx.font='9px Courier New';
-    ctx.fillText(kbd,b.x+b.w/2,b.y+b.h-12);
-  }
-
-  {const lb=getButtonLabels();
-  drawModeCard(solo,soloHov,'🚌','SOLO PLAY','1 PLAYER','Classic arcade mode',gamepadIndex!==null?`${lb.confirm} SELECT`:'[S] or click');
-  drawModeCard(tour,tourHov,'🏆','TOURNAMENT','WITH FRIENDS','Up to 8 players',gamepadIndex!==null?`${lb.confirm} SELECT`:'[T] or click');
-  ctx.fillStyle='rgba(228,242,220,0.72)'; ctx.font='9px Courier New'; ctx.textAlign='center';
-  ctx.fillText(gamepadIndex!==null?`STICK/D-PAD CHOOSE  —  ${lb.confirm} SELECT  —  ${lb.back} BACK`:'ESC - BACK TO TITLE',BASE_W/2,BASE_H/2+118);}
-  drawGlitchSlices(); drawScanlines();
-}
-
 function drawPlayerIntro(){
   ctx.fillStyle='rgba(0,0,0,0.94)'; ctx.fillRect(0,0,BASE_W,BASE_H);
   drawStarsParallax(); drawVignette(); drawBorder();
@@ -3099,7 +3232,7 @@ function drawWelcome(){
 
   // Team name
   ctx.fillStyle='rgba(166,255,0,0.55)'; ctx.font='bold 10px Courier New';
-  ctx.fillText('— FLEET ZERO PRODACTION —', BASE_W/2, py+88);
+  ctx.fillText('— FLEET ZERO PRODUCTION —', BASE_W/2, py+88);
 
   // Main welcome line
   ctx.save(); ctx.shadowBlur=28*pulse; ctx.shadowColor=C.lime;
@@ -3336,7 +3469,7 @@ function render(){
   if(gs===STATE.TITLE){ ctx.restore(); drawTitle(); drawGlitchSlices(); drawScanlines(); return; }
   if(gs===STATE.WELCOME){ ctx.restore(); drawWelcome(); return; }
   if(gs===STATE.HOW_TO_PLAY){ ctx.restore(); drawHowToPlay(); return; }
-  if(gs===STATE.MODE_SELECT){ ctx.restore(); drawModeSelect(); return; }
+  if(gs===STATE.NAME_ENTRY){ ctx.restore(); drawVignette(); drawBorder(); return; }
   if(gs===STATE.PLAYER_INTRO){ ctx.restore(); drawPlayerIntro(); return; }
   if(gs===STATE.LEADERBOARD){ ctx.restore(); drawLeaderboard(); return; }
   if(gs===STATE.VICTORY){ ctx.restore(); drawVictory(); drawScanlines(); return; }
@@ -3371,7 +3504,7 @@ function render(){
   if(gs===STATE.CRASH_WARNING) drawCrashWarning();
   if(gs===STATE.GAME_OVER){
     if(gameOverRevealTimer>0) drawGameOverWarning();
-    else drawGameOver();
+    else if(tournamentMode) drawGameOver();
   }
 }
 
@@ -3386,6 +3519,9 @@ function loop(ts){
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(ts=>{ lastTime=ts; requestAnimationFrame(loop); });
+FleetData.flush();
+if(BOARD_ONLY_SCREEN) FleetResults.showBoard({tv:true}); // A TV showing the board is not a visit.
+else FleetData.visit(sharedScreen?'shared':'own');
 </script>
 </body>
 </html>

@@ -1,0 +1,215 @@
+/* Fleet Invaders: solo name screen, results and leaderboard. */
+:root{
+  --fi-bg:#050705;--fi-panel:#0D120C;--fi-panel-2:#161D14;
+  --fi-ink:#F3F7EC;--fi-mute:#AEB8A6;--fi-faint:#859079;
+  --fi-line:rgba(243,247,236,.11);--fi-line-2:rgba(243,247,236,.22);
+  --fi-lime:#B8FF38;--fi-lime-ink:#0B1400;--fi-red:#FF7A6E;
+  --fi-display:"Barlow Condensed","Arial Narrow","Segoe UI",system-ui,sans-serif;
+  --fi-ui:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+  --fi-led:"Doto","Courier New",ui-monospace,monospace;
+}
+#playerCount{white-space:nowrap;flex:none}
+/* Game controls stay out of the way while a name or result screen is open. */
+body:has(#tournamentOverlay.visible) #touchControls,body:has(#tournamentOverlay.visible) #topBtns,
+body:has(#resultOverlay.visible) #touchControls,body:has(#resultOverlay.visible) #topBtns{display:none!important}
+
+/* ---------- name screen: the setup panel in solo mode ---------- */
+#tournamentOverlay.solo{background:var(--fi-bg);backdrop-filter:none;justify-content:center}
+#tournamentOverlay.solo>h1,#tournamentOverlay.solo>.t-sub,
+#tournamentOverlay.solo #entryCharacters,#tournamentOverlay.solo .eyebrow,#tournamentOverlay.solo .panel-copy,
+#tournamentOverlay.solo #emojiPickerLabel,#tournamentOverlay.solo .field-label,
+#tournamentOverlay.solo #addPlayerBtn,#tournamentOverlay.solo #tournamentErr,
+#tournamentOverlay.solo .roster-head,#tournamentOverlay.solo #playerList,#tournamentOverlay.solo .t-actions{display:none}
+#tournamentOverlay:not(.solo) #entryInvaders,#tournamentOverlay:not(.solo) #soloArea,#tournamentOverlay:not(.solo) #nameHint{display:none}
+#tournamentOverlay.solo #tPanel{background:none;border:0;box-shadow:none;padding:12px 16px;width:min(620px,calc(100vw - 24px));text-align:center}
+#tournamentOverlay.solo #tPanel::before,#tournamentOverlay.solo #tPanel::after{display:none}
+#tournamentOverlay.solo .panel-head{display:block;margin-bottom:12px;text-align:center}
+#tournamentOverlay.solo .panel-head h2{font:600 clamp(34px,5vw,50px)/1.05 var(--fi-display);color:var(--fi-ink);letter-spacing:-.01em;margin:0}
+#entryInvaders{display:flex;justify-content:center;gap:clamp(8px,2vw,18px);margin-bottom:14px}
+#entryInvaders img{width:clamp(30px,5vw,44px);height:clamp(30px,5vw,44px);object-fit:contain;animation:fi-sway 3.2s ease-in-out infinite alternate}
+#entryInvaders img:nth-child(2n){animation-delay:-1.6s}
+@keyframes fi-sway{from{transform:translateY(-3px)}to{transform:translateY(3px)}}
+#tournamentOverlay.solo .t-row{justify-content:center;margin-bottom:6px;flex-direction:row}
+#tournamentOverlay.solo #playerNameInput{
+  flex:1 1 auto;max-width:520px;height:auto;padding:4px 4px 8px;background:none;border:0;border-bottom:3px solid var(--fi-line-2);border-radius:0;
+  font:600 clamp(36px,6vw,56px)/1.1 var(--fi-display);color:var(--fi-ink);text-align:center;text-transform:uppercase;letter-spacing:.01em;caret-color:var(--fi-lime);box-shadow:none;
+}
+#tournamentOverlay.solo #playerNameInput::placeholder{color:#7a8571;opacity:1}
+#tournamentOverlay.solo #playerNameInput:focus{border-bottom-color:var(--fi-lime);box-shadow:none}
+#tournamentOverlay.solo #playerNameInput[aria-invalid="true"]{border-bottom-color:var(--fi-red)}
+#nameHint{min-height:1.5em;margin:0 0 12px;color:var(--fi-mute);font:400 16px/1.5 var(--fi-ui)}
+#nameHint.ok{color:var(--fi-lime)}
+#nameHint.err{color:var(--fi-red)}
+#tournamentOverlay.solo #emojiPicker{justify-content:center;background:none;border:0;padding:0;margin:0 auto 18px;max-width:440px}
+#tournamentOverlay.solo #emojiPicker span{width:40px;height:40px;flex:none;font-size:22px;border-radius:50%;border:2px solid transparent;background:none;box-shadow:none}
+#tournamentOverlay.solo #emojiPicker span:nth-child(n+9){display:none}
+#tournamentOverlay.solo #emojiPicker span.sel{border-color:var(--fi-lime);background:none;box-shadow:none}
+#tournamentOverlay.solo:not(.gamepad-mode) #emojiPicker span.pad-selected{outline:0}
+#soloArea{display:flex;flex-direction:column;align-items:center;gap:12px}
+.fi-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:0 28px;border-radius:999px;border:1px solid transparent;cursor:pointer;font:600 17px/1 var(--fi-ui);transition:transform .12s,background .18s,border-color .18s}
+.fi-btn:active{transform:scale(.98)}
+.fi-btn:disabled{opacity:.6;cursor:default}
+.fi-btn.primary{background:var(--fi-lime);color:var(--fi-lime-ink)}
+.fi-btn.primary:hover{background:#cbff66}
+.fi-btn.ghost{background:none;border-color:var(--fi-line-2);color:var(--fi-ink)}
+.fi-btn.ghost:hover{border-color:var(--fi-ink)}
+.fi-btn:focus-visible,.fi-link:focus-visible,.ro-row:focus-visible,.fi-seg button:focus-visible{outline:2px solid var(--fi-lime);outline-offset:2px}
+.fi-btn.pad-selected,.fi-link.pad-selected{outline:2px solid #fff;outline-offset:3px}
+.fi-btn kbd{font:500 12px/1 var(--fi-ui);padding:4px 7px;border-radius:5px;background:rgba(11,20,0,.14)}
+.fi-links{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 20px}
+.fi-link{background:none;border:0;padding:2px;cursor:pointer;color:var(--fi-mute);font:400 15px/1.4 var(--fi-ui);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em}
+.fi-link:hover{color:var(--fi-ink)}
+#nameNotice{max-width:42ch;color:var(--fi-faint);font:400 14px/1.45 var(--fi-ui)}
+/* Controller letter pad: readable from where someone stands with a controller. */
+#tournamentOverlay.solo.gamepad-mode{justify-content:flex-start}
+#tournamentOverlay.solo.gamepad-mode #entryInvaders{display:none}
+#tournamentOverlay.solo.gamepad-mode #tPanel{width:min(760px,calc(100vw - 24px));max-height:none;overflow:visible;padding:8px 16px}
+#tournamentOverlay.solo.gamepad-mode #emojiPicker{margin-bottom:12px;padding:0}
+#tournamentOverlay.solo.gamepad-mode #emojiPicker span{width:40px;height:40px;font-size:22px}
+#tournamentOverlay.solo #controllerNamePad{background:none;border:0;padding:0;margin:0 0 10px}
+#tournamentOverlay.solo #controllerPadLabel{display:none}
+#tournamentOverlay.solo #controllerKeys{gap:6px}
+#tournamentOverlay.solo #controllerKeys button{height:clamp(34px,5.6vh,48px);padding:0;background:var(--fi-panel);border:1px solid var(--fi-line-2);border-radius:8px;color:var(--fi-ink);font:600 clamp(16px,2.6vh,22px)/1 var(--fi-ui);box-shadow:none}
+#tournamentOverlay.solo #controllerKeys button.wide{font-size:clamp(14px,2.2vh,18px)}
+#tournamentOverlay.solo #controllerKeys button.selected{background:var(--fi-lime);border-color:var(--fi-lime);color:var(--fi-lime-ink);box-shadow:none}
+#tournamentOverlay.solo #controllerKeys button[data-key="ADD"]{display:none}
+#tournamentOverlay.solo.gamepad-mode #controllerHelp{margin:0 0 12px;color:var(--fi-mute);font:500 17px/1.35 var(--fi-ui);letter-spacing:0}
+#tournamentOverlay.solo.gamepad-mode #nameNotice{font-size:13px}
+#tournamentOverlay.solo.gamepad-mode #soloArea{gap:8px}
+#tournamentOverlay.solo.gamepad-mode .panel-head h2{font-size:clamp(26px,4.4vh,40px)}
+#tournamentOverlay.solo.gamepad-mode #playerNameInput{font-size:clamp(28px,5vh,44px);height:auto;min-height:0;padding-bottom:4px}
+#tournamentOverlay.solo.gamepad-mode #nameHint{margin-bottom:6px}
+@media (max-width:500px){
+  #tournamentOverlay.solo{justify-content:flex-start;padding-top:18px}
+  #tournamentOverlay.solo #emojiPicker{margin-bottom:14px;flex-wrap:wrap;overflow:visible;gap:3px}
+  #tournamentOverlay.solo #emojiPicker span{width:38px;height:38px}
+}
+
+/* ---------- results and leaderboard ---------- */
+#resultOverlay{position:fixed;inset:0;z-index:100;display:none;background:var(--fi-bg);color:var(--fi-ink);font:400 17px/1.5 var(--fi-ui);overflow:auto;-webkit-font-smoothing:antialiased}
+#resultOverlay.visible{display:block}
+#resultOverlay ::selection{background:var(--fi-lime);color:var(--fi-lime-ink)}
+.ro-shell{min-height:100%;max-width:1320px;margin:0 auto;padding:clamp(14px,2.4vw,28px);display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:clamp(14px,2vw,24px);align-items:stretch}
+#resultOverlay.board-only .ro-shell{grid-template-columns:minmax(0,860px);justify-content:center}
+#resultOverlay.board-only .ro-main{display:none}
+.ro-main{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:clamp(16px,3vw,32px);min-width:0}
+.ro-rank{font:900 clamp(84px,14vw,168px)/.95 var(--fi-led);color:var(--fi-lime);font-variant-numeric:tabular-nums;min-height:.95em}
+.ro-of{color:var(--fi-mute);min-height:1.5em}
+.ro-name{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:4px;font:600 clamp(26px,3.4vw,38px)/1.1 var(--fi-display);overflow-wrap:anywhere}
+.ro-score{font-size:clamp(52px,6.4vw,84px);line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.ro-next{min-height:1.5em;color:var(--fi-ink)}
+.ro-sub{min-height:1.4em;color:var(--fi-mute);font-size:15px;max-width:44ch}
+.ro-stats{display:flex;flex-wrap:wrap;justify-content:center;gap:10px clamp(16px,2.6vw,32px);margin:8px 0 14px;padding:12px 0;width:100%;max-width:560px;border-block:1px solid var(--fi-line)}
+.ro-stats dt{font-size:13px;color:var(--fi-faint)}
+.ro-stats dd{margin:0;font:600 22px/1.15 var(--fi-display);font-variant-numeric:tabular-nums}
+.ro-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.ro-auto{min-height:1.4em;margin-top:6px;font-size:14px;color:var(--fi-faint)}
+.ro-board{display:flex;flex-direction:column;min-width:0;max-height:calc(100vh - 2 * clamp(14px,2.4vw,28px));min-height:420px;container-type:inline-size;background:var(--fi-panel);border:1px solid var(--fi-line);border-radius:20px;overflow:hidden}
+.ro-head{padding:16px 18px 12px;display:grid;gap:10px}
+.ro-title{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.ro-title h2{font:600 30px/1.04 var(--fi-display);margin:0}
+.ro-count{color:var(--fi-mute);font-size:15px;white-space:nowrap}
+.ro-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fi-seg{display:inline-flex;border:1px solid var(--fi-line-2);border-radius:999px;padding:3px;background:var(--fi-bg)}
+.fi-seg button{background:none;border:0;cursor:pointer;padding:4px 10px;border-radius:999px;font:500 13px/1.3 var(--fi-ui);color:var(--fi-mute);white-space:nowrap;transition:background .18s,color .18s}
+.fi-seg button:hover{color:var(--fi-ink)}
+.fi-seg button[aria-pressed="true"]{background:var(--fi-ink);color:#050705}
+.ro-search{flex:1 1 110px;min-width:110px;background:var(--fi-bg);border:1px solid var(--fi-line-2);border-radius:999px;padding:5px 12px;color:var(--fi-ink);font:400 14px/1.3 var(--fi-ui);caret-color:var(--fi-lime);outline:0}
+.ro-search::placeholder{color:var(--fi-faint);opacity:1}
+.ro-search:focus{border-color:var(--fi-lime)}
+.ro-back{justify-self:start}
+.ro-cols,.ro-row{display:grid;grid-template-columns:34px 26px minmax(0,1fr) 84px 40px 42px 58px;gap:6px;align-items:center;padding:0 18px}
+.ro-cols{font-size:12px;color:var(--fi-faint);padding-block:6px;border-block:1px solid var(--fi-line)}
+.ro-cols span:nth-child(n+4){text-align:right}
+.ro-rows{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;position:relative;scrollbar-width:thin;scrollbar-color:#3a4634 transparent}
+.ro-wrap{border-bottom:1px solid var(--fi-line)}
+.ro-row{width:100%;min-height:42px;background:none;border:0;color:inherit;cursor:pointer;text-align:left;font:inherit;transition:background .15s}
+.ro-row:hover{background:var(--fi-panel-2)}
+.ro-row:focus-visible{outline-offset:-2px}
+.ro-row>span:nth-child(n+4){text-align:right;font-size:14px;color:var(--fi-mute);font-variant-numeric:tabular-nums}
+.ro-r{font:600 18px/1 var(--fi-display);color:var(--fi-mute);font-variant-numeric:tabular-nums}
+.ro-wrap.top3 .ro-r{color:var(--fi-lime)}
+.ro-a{font-size:17px;line-height:1;text-align:center}
+.ro-n{font:600 18px/1.1 var(--fi-display);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ro-row>span.ro-s{font:600 20px/1 var(--fi-display);color:var(--fi-ink);font-variant-numeric:tabular-nums}
+.ro-wrap.me .ro-row{background:var(--fi-lime);color:var(--fi-lime-ink)}
+.ro-wrap.me .ro-row>span{color:var(--fi-lime-ink)!important}
+.ro-hist{padding:4px 18px 12px 62px;font-size:14px;color:var(--fi-mute)}
+.ro-hist-title{color:var(--fi-ink);font-weight:500;padding-block:6px}
+.ro-hist ul{list-style:none;margin:0;padding:0}
+.ro-hist li{display:grid;grid-template-columns:minmax(72px,auto) 1fr auto;gap:12px;padding-block:3px;border-top:1px solid var(--fi-line);font-variant-numeric:tabular-nums}
+.ro-hist b{font:600 16px/1.4 var(--fi-display);color:var(--fi-ink);text-align:right}
+.ro-msg{padding:32px 18px;color:var(--fi-mute);text-align:center}
+.ro-more{display:block;width:100%;padding:10px;background:none;border:0;border-top:1px solid var(--fi-line);cursor:pointer;font:400 14px/1.3 var(--fi-ui);color:var(--fi-mute)}
+.ro-more:hover{color:var(--fi-ink)}
+.ro-more[hidden]{display:none}
+@container (max-width:470px){
+  .ro-cols,.ro-row{grid-template-columns:34px 26px minmax(0,1fr) 84px 40px 58px}
+  .ro-acc{display:none}
+}
+@container (max-width:380px){
+  .ro-cols,.ro-row{grid-template-columns:30px 24px minmax(0,1fr) 78px 38px}
+  .ro-when{display:none}
+  .ro-hist{padding-left:18px}
+}
+/* Upright phones and tablets: the result and the player's row share one screen,
+   so the row can be seen landing. */
+@media (max-width:980px) and (orientation:portrait),(max-width:640px){
+  .ro-shell{display:flex;flex-direction:column;height:100dvh;min-height:620px;gap:8px;padding:10px 12px}
+  .ro-main{flex:none;gap:5px;padding:6px 0 4px}
+  .ro-rank{font-size:clamp(68px,19vw,104px)}
+  .ro-of,.ro-next{min-height:0;font-size:16px;line-height:1.3}
+  .ro-sub{font-size:14px;line-height:1.3;min-height:0}
+  .ro-score{font-size:clamp(44px,12vw,64px)}
+  .ro-name{margin-top:2px}
+  .ro-sub:empty,.ro-auto:empty{display:none}
+  .ro-stats{margin:4px 0 6px;padding:7px 0;gap:6px 14px;flex-wrap:nowrap;justify-content:space-between}
+  .ro-stats dt{font-size:12px;white-space:nowrap}
+  .ro-stats dd{font-size:19px;white-space:nowrap}
+  .ro-actions{display:grid;grid-template-columns:1fr 1fr;width:100%;max-width:560px;gap:8px}
+  .ro-actions .fi-btn{min-height:50px;padding:4px 12px;font-size:16px;line-height:1.15}
+  .ro-auto{margin-top:2px;font-size:13px}
+  .ro-board{flex:1 1 0;min-height:230px;max-height:none;border-radius:16px}
+  .ro-head{padding:10px 14px 8px;gap:8px}
+  .ro-title h2{font-size:26px}
+  .ro-cols,.ro-row{padding-inline:14px}
+  #resultOverlay:not(.board-only) .ro-search{display:none}
+  #resultOverlay.board-only .ro-shell{min-height:0}
+}
+/* Phones on their side: keep the two columns and drop what will not fit. */
+@media (max-height:520px) and (orientation:landscape){
+  .ro-rank{font-size:64px}
+  .ro-score{font-size:40px}
+  .ro-stats{display:none}
+  .ro-board{min-height:0}
+}
+/* Touch: real finger-sized controls, and no keyboard hints. */
+@media (pointer:coarse){
+  .fi-btn kbd{display:none}
+  .fi-seg button{min-height:40px;padding:6px 11px;font-size:14px}
+  .ro-search{min-height:44px;font-size:16px}
+  .ro-row{min-height:46px}
+  .fi-link{padding:8px 4px}
+}
+/* TV view (?view=board): sized from the screen height, so any TV fills up the same way. */
+#resultOverlay.tv .ro-shell{grid-template-columns:minmax(0,1fr);max-width:none;height:100vh;padding:3vh 3.4vh}
+#resultOverlay.tv .ro-board{height:94vh;max-height:none;min-height:0;border-radius:2.6vh}
+#resultOverlay.tv .ro-head{padding:3vh 4vh 2vh}
+#resultOverlay.tv .ro-tools{display:none}
+#resultOverlay.tv .ro-title h2{font-size:7vh}
+#resultOverlay.tv .ro-count{font-size:3vh}
+#resultOverlay.tv .ro-cols,#resultOverlay.tv .ro-row{grid-template-columns:9vh 6vh minmax(0,1fr) 22vh 11vh 11vh 13vh;gap:1.6vh;padding-inline:4vh}
+#resultOverlay.tv .ro-cols{font-size:2vh;padding-block:1vh}
+#resultOverlay.tv .ro-row{min-height:7.2vh}
+#resultOverlay.tv .ro-r{font-size:3.6vh}
+#resultOverlay.tv .ro-wrap.top3 .ro-r{font:900 4.8vh/1 var(--fi-led)}
+#resultOverlay.tv .ro-a{font-size:3.4vh}
+#resultOverlay.tv .ro-n{font-size:4vh}
+#resultOverlay.tv .ro-row>span:nth-child(n+4){font-size:2.6vh}
+#resultOverlay.tv .ro-row>span.ro-s{font-size:4.2vh}
+#resultOverlay.tv .ro-rows{scrollbar-width:none;padding-bottom:8vh;-webkit-mask-image:linear-gradient(#000 calc(100% - 8vh),transparent);mask-image:linear-gradient(#000 calc(100% - 8vh),transparent)}
+#resultOverlay.tv .ro-more{display:none}
+@media (prefers-reduced-motion:reduce){
+  #entryInvaders img{animation:none}
+  .fi-btn,.fi-seg button,.ro-row{transition:none}
+}
