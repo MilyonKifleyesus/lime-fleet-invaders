@@ -5,6 +5,28 @@
     {
       "source": "/",
       "destination": "/game.html"
+    },
+    {
+      "source": "/report",
+      "destination": "/report.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/report",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/report.html",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
     }
   ]
 }
