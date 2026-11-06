@@ -538,9 +538,8 @@
   var cardTimer = null;
   function showCard(m) {
     var card = $('card');
-    var html = '<p class="eyebrow">Round ' + (m.round || S.round) + '</p>';
-    html += '<h2>' + (m.rank ? 'You placed ' + ordinal(m.rank) : 'Round over') + '</h2>';
-    html += '<p>' + fmt(m.score) + ' points' + (m.of ? ' · ' + m.of + ' drivers' : '') + '</p>';
+    var html = '<h2>' + (m.rank ? 'You placed ' + ordinal(m.rank) : 'Round over') + '</h2>';
+    html += '<p>Round ' + (m.round || S.round) + ' · ' + fmt(m.score) + ' points' + (m.of ? ' · ' + m.of + ' drivers' : '') + '</p>';
     if (m.badge) html += '<span class="badge"></span>';
     card.innerHTML = html;
     if (m.badge) card.querySelector('.badge').textContent = m.badge;

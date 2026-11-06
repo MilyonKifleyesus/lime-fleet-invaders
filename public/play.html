@@ -35,10 +35,10 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;paddin
 h1,h2{font-family:var(--display);text-transform:uppercase;margin:0;font-weight:800;letter-spacing:.005em;text-wrap:balance}
 p{margin:0}
 .mark{width:46px;height:39px;background:var(--lime);-webkit-mask:url(/sprites/bus_gunner.png) center/contain no-repeat;mask:url(/sprites/bus_gunner.png) center/contain no-repeat}
-.btn{display:block;width:100%;text-align:center;font:800 26px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;padding:18px 0;border-radius:999px;background:var(--lime);color:var(--lime-ink)}
+.btn{display:block;width:100%;text-align:center;font:800 26px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;padding:18px 20px;border-radius:999px;background:var(--lime);color:var(--lime-ink)}
 .btn:active{transform:scale(.98)}
 .btn:disabled{opacity:.5}
-.ghost{display:block;width:100%;text-align:center;font:600 15px/1 var(--ui);padding:14px 0;border-radius:14px;border:1px solid var(--line-2)}
+.ghost{display:block;width:100%;text-align:center;font:600 15px/1 var(--ui);padding:14px 16px;border-radius:14px;border:1px solid var(--line-2)}
 .link{font:600 14px/1.3 var(--ui);color:var(--mute);text-decoration:underline;text-underline-offset:3px;padding:10px 0}
 .err{color:var(--bad);font:600 14px/1.35 var(--ui);min-height:19px}
 
@@ -66,7 +66,7 @@ p{margin:0}
 .j-col{display:flex;justify-content:center;align-items:center;gap:8px;font:600 14px/1 var(--ui);color:var(--mute)}
 .j-col i{width:13px;height:13px;border-radius:50%;background:var(--pc)}
 .j-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.j-acts button{font:600 14px/1 var(--ui);padding:14px 0;border-radius:14px;border:1px solid var(--line-2)}
+.j-acts button{font:600 14px/1.2 var(--ui);padding:14px 12px;border-radius:14px;border:1px solid var(--line-2)}
 .j-acts button:disabled{opacity:.4}
 .own{display:flex;gap:8px}
 .own input{flex:1;min-width:0;font:700 22px/1 var(--display);text-transform:uppercase;letter-spacing:.03em;padding:14px 14px;border-radius:14px;border:2px solid var(--line-2);background:var(--panel);color:var(--ink);-webkit-user-select:text;user-select:text}
@@ -109,7 +109,7 @@ p{margin:0}
 .cover{position:absolute;inset:0;z-index:5;display:grid;place-content:center;text-align:center;gap:10px;padding:24px;background:color-mix(in srgb,var(--pci) 86%,transparent);color:var(--pc)}
 .cover b{font:900 120px/1 var(--led)}
 .cover h2{font-size:44px;line-height:.92}
-.cover span{font:700 15px/1.35 var(--ui);letter-spacing:.04em;text-transform:uppercase}
+.cover span{font:700 16px/1.35 var(--ui)}
 /* Between rounds the top of the phone says what's happening, and the strip
    stays usable so drivers can find their bus before it starts. */
 #d-wait{bottom:auto;place-content:start center;padding:calc(var(--st) + 26px) 20px 30px;border-radius:0 0 28px 28px;pointer-events:none}
@@ -160,7 +160,6 @@ p{margin:0}
   </section>
 
   <section class="scr" id="s-code" hidden>
-    <p class="eyebrow">Join the game</p>
     <h1>Enter the code from the big screen</h1>
     <p style="color:var(--mute)">It's the four characters under the QR code.</p>
     <input id="code-in" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" aria-label="Join code">
@@ -210,7 +209,6 @@ p{margin:0}
   </section>
 
   <section class="scr" id="s-line" hidden>
-    <p class="eyebrow" style="color:var(--mute)">You're in Mission Control</p>
     <h1>Mission Control</h1>
     <p id="l-status">You're in line for a bus.</p>
     <button type="button" class="tap" id="tap" aria-label="Tap to charge the fleet shield">
@@ -224,9 +222,8 @@ p{margin:0}
   </section>
 
   <section class="scr" id="s-bench" hidden>
-    <p class="eyebrow">Your bus parked</p>
     <h1>Still there?</h1>
-    <p>Your bus stopped after 30 seconds without steering, so someone else can drive.</p>
+    <p>Your bus parked after 30 seconds without steering, so someone else can drive.</p>
     <button class="btn" type="button" id="b-line">Get back in line</button>
     <button type="button" class="link" id="b-leave">Leave the game</button>
   </section>
