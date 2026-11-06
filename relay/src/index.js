@@ -329,6 +329,29 @@ export class Room extends DurableObject {
     await this.ctx.storage.put('meta', this.meta);
   }
 
+  // A seat that frees up mid-round goes straight to the next connected phone in line,
+  // then everyone still waiting hears their new place.
+  async seatFromLine() {
+    const changed = [];
+    for (const p of this.line()) {
+      if (!p.connected) continue;
+      const seat = this.freeSeat();
+      if (seat === null) break;
+      p.seat = seat;
+      p.seatedAt = Date.now();
+      p.queuedAt = null;
+      changed.push(p);
+    }
+    if (changed.length) {
+      await this.savePlayers(changed);
+      for (const p of changed) {
+        this.toPlayer(p.id, { t: 'seat', seat: p.seat, line: 0 });
+        this.toHosts({ t: 'p', p: this.pub(p) });
+      }
+    }
+    this.sendLinePositions();
+  }
+
   // Tells every phone in line where it now stands.
   sendLinePositions() {
     this.line().forEach((p, i) => this.toPlayer(p.id, { t: 'seat', seat: null, line: i + 1 }));
@@ -403,7 +426,7 @@ export class Room extends DurableObject {
     if (changed.length) {
       await this.savePlayers(changed);
       for (const p of changed) this.toHosts({ t: 'p', p: this.pub(p) });
-      this.sendLinePositions();
+      await this.seatFromLine();
     }
     await this.saveMeta();
     const anyone = screenOn || this.sockets.size > 0;
@@ -521,7 +544,7 @@ export class Room extends DurableObject {
         this.byToken.delete(p.token);
         await this.savePlayers([p]);
         this.toHosts({ t: 'p', p: this.pub(p) });
-        this.sendLinePositions();
+        await this.seatFromLine();
         try { ws.close(1000, 'left'); } catch { /* already closed */ }
       }
       return;
@@ -615,6 +638,7 @@ export class Room extends DurableObject {
         await this.savePlayers([p]);
         this.toPlayer(p.id, { t: 'seat', seat: null, line: -1, why: 'idle' });
         this.toHosts({ t: 'p', p: this.pub(p) });
+        await this.seatFromLine();
       }
     } else if (m.t === 'rotate') {
       await this.rotateSeats();
@@ -675,7 +699,7 @@ export class Room extends DurableObject {
         this.sockets.delete(p.id);
       }
       this.toHosts({ t: 'p', p: this.pub(p) });
-      this.sendLinePositions();
+      await this.seatFromLine();
     } else if (m.t === 'hide' && p && !p.removed) {
       p.hidden = !!m.on;
       await this.savePlayers([p]);

@@ -1,6 +1,11 @@
 // Relay checks. Run against `wrangler dev` with the test settings in .dev.vars
-// (CODE_MS=8000, MIN_TURN_MS=0) or set RELAY and EVENT_KEY for a deployed relay.
+// (CODE_MS=8000, MIN_TURN_MS=0), or against the deployed relay with
+// RELAY, EVENT_KEY, ORIGIN and PROD=1, which uses the real timings:
+// codes last 45 seconds and a driver keeps a seat for at least a minute.
 import { BASE, WS_BASE, Client, createRoom, screen, joinPhone, sleep } from './client.mjs';
+
+const PROD = process.env.PROD === '1';
+const CODE_WAIT = PROD ? 55000 : 15000;
 
 const results = [];
 async function check(name, fn) {
@@ -19,8 +24,12 @@ function assert(cond, msg) {
 
 const open = [];
 const track = c => (open.push(c), c);
+// Real phones ping every few seconds; do the same so quiet test sockets stay open.
+const keepalive = setInterval(() => {
+  for (const c of open) if (c.ws.readyState === 1) c.send('ping');
+}, 20000);
 
-console.log('Relay at ' + BASE);
+console.log('Relay at ' + BASE + (PROD ? ' (real timings)' : ''));
 
 await check('health answers', async () => {
   const r = await fetch(BASE + '/health');
@@ -47,6 +56,20 @@ await check('the big screen connects and gets a join code', async () => {
   assert(/^[A-HJ-NP-Z2-9]{4}$/.test(roster.code), 'code ' + roster.code);
   assert(roster.players.length === 0, 'players');
 });
+
+// With real timings a driver keeps the seat for a minute, so that check starts
+// here in its own one-seat room and finishes at the end.
+let turn = null;
+if (PROD) {
+  const r = await createRoom(1);
+  const s = track(screen(r.body.room, r.body.host));
+  const code = (await s.waitFor(m => m.t === 'roster')).code;
+  const first = await joinPhone(code, 'FIRST');
+  track(first.c);
+  const second = await joinPhone(code, 'SECOND');
+  track(second.c);
+  turn = { s, first, second, at: Date.now() };
+}
 
 await check('a wrong host key is refused', async () => {
   const bad = track(screen(room, 'x'.repeat(32)));
@@ -143,8 +166,15 @@ await check('a dropped phone reconnects to the same seat with its token', async 
   a.c = again;
 });
 
-await check('end of round: drivers make room for the line', async () => {
+await check(PROD ? 'end of round: drivers who just sat down keep their seats' : 'end of round: drivers make room for the line', async () => {
   scr.send({ t: 'rotate' });
+  if (PROD) {
+    const r = await scr.waitFor(m => m.t === 'roster');
+    const seated = r.players.filter(p => p.seat !== null).map(p => p.name).sort();
+    assert(seated.join(',') === 'PRIYA,PRIYA 2', seated.join(','));
+    assert(r.players.filter(p => p.queued).length === 1, 'ÉMILIE should still be in line');
+    return;
+  }
   const s = await c3.c.waitFor(m => m.t === 'seat' && m.seat !== null);
   assert(s.seat === 0 || s.seat === 1, JSON.stringify(s));
   const r = await scr.waitFor(m => m.t === 'roster');
@@ -187,6 +217,13 @@ await check('host can remove a player, whose token then stops working', async ()
   assert(e.why === 'token', e.why);
 });
 
+await check('a seat freed mid-round goes straight to the next phone in line', async () => {
+  const next = PROD ? c3 : a;
+  const s = await next.c.waitFor(m => m.t === 'seat' && m.seat !== null);
+  assert(s.line === 0, JSON.stringify(s));
+  await scr.waitFor(m => m.t === 'p' && m.p.id === next.w.id && m.p.seat !== null);
+});
+
 await check('host start command reaches the big screen', async () => {
   admin.send({ t: 'cmd', c: 'start' });
   await scr.waitFor(m => m.t === 'cmd' && m.c === 'start');
@@ -213,12 +250,12 @@ await check('a second big screen replaces the first', async () => {
 await check('codes change, the previous code still works, older codes stop', async () => {
   const s2 = track(screen(room, host));
   const first = (await s2.waitFor(m => m.t === 'roster')).code;
-  const next = await s2.waitFor(m => m.t === 'code', 15000, 'a new code');
+  const next = await s2.waitFor(m => m.t === 'code', CODE_WAIT, 'a new code');
   assert(next.code !== first, 'code did not change');
   const stillOk = await joinPhone(first, 'PREV CODE');
   track(stillOk.c);
   assert(!stillOk.err, 'previous code refused: ' + JSON.stringify(stillOk.err));
-  await s2.waitFor(m => m.t === 'code' && m.code !== next.code, 15000, 'a third code');
+  await s2.waitFor(m => m.t === 'code' && m.code !== next.code, CODE_WAIT, 'a third code');
   const old = await joinPhone(first, 'OLD CODE');
   track(old.c);
   assert(old.err && old.err.why === 'code', 'old code accepted');
@@ -235,6 +272,17 @@ await check('a page on another website is refused', async () => {
   assert(m.why === 'origin', m.why);
 });
 
+if (turn) {
+  await check('after a minute at the wheel, a driver makes room for the line', async () => {
+    const wait = 61000 - (Date.now() - turn.at);
+    if (wait > 0) await sleep(wait);
+    turn.s.send({ t: 'rotate' });
+    await turn.second.c.waitFor(m => m.t === 'seat' && m.seat === 0, 5000, 'SECOND seated');
+    await turn.first.c.waitFor(m => m.t === 'seat' && m.seat === null && m.line === 1, 5000, 'FIRST in line');
+  });
+}
+
+clearInterval(keepalive);
 for (const c of open) c.close();
 const failed = results.filter(r => !r[0]);
 console.log(`\n${results.length - failed.length} of ${results.length} relay checks passed`);

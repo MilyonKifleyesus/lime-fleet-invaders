@@ -3,6 +3,9 @@
 export const BASE = process.env.RELAY || 'http://127.0.0.1:8787';
 export const WS_BASE = BASE.replace(/^http/, 'ws');
 export const KEY = process.env.EVENT_KEY || 'local-test-key';
+// A deployed relay only talks to the game's own website, so tests present its address.
+export const ORIGIN = process.env.ORIGIN || '';
+const originHeaders = ORIGIN ? { Origin: ORIGIN } : {};
 
 export class Client {
   constructor(url, init) {
@@ -10,7 +13,8 @@ export class Client {
     this.bins = [];
     this.waiters = [];
     this.closed = null;
-    this.ws = init ? new WebSocket(url, init) : new WebSocket(url);
+    const headers = { ...originHeaders, ...(init && init.headers) };
+    this.ws = Object.keys(headers).length ? new WebSocket(url, { headers }) : new WebSocket(url);
     this.ws.binaryType = 'arraybuffer';
     this.ws.addEventListener('message', e => {
       if (typeof e.data === 'string') {
@@ -93,7 +97,7 @@ export class Client {
 export async function createRoom(seats = 16, key = KEY) {
   const res = await fetch(BASE + '/rooms', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-event-key': key },
+    headers: { 'content-type': 'application/json', 'x-event-key': key, ...originHeaders },
     body: JSON.stringify({ seats }),
   });
   return { status: res.status, body: await res.json() };
