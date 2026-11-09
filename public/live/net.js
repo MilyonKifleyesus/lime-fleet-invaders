@@ -95,6 +95,12 @@
       if (!m || m.t === 'wait') return;
       this.adopt(ws);
     }
+    if (ws === this.ws && this.next && m && m.t === 'replaced') {
+      // Our own handover: the new connection reached another copy, which
+      // released this one before the new one said it was ready. Move over.
+      this.promoteNext();
+      return;
+    }
     if (ws === this.ws) {
       this.lastMsg = Date.now();
     } else if (ws === this.retiring && this.opts.keepOld) {
@@ -121,12 +127,10 @@
       return;
     }
     if (ws !== this.ws) return;
-    if (this.next && this.next.readyState === 1) {
-      // The old connection closed first; the new one is already open.
-      this.ws = this.next;
-      this.next = null;
-      this.lastMsg = Date.now();
-      this.scheduleHandover(this.ws.ttl);
+    if (this.next && this.next.readyState <= 1) {
+      // The old connection closed first; the new one is taking over.
+      this.promoteNext();
+      this.retiring = null;
       return;
     }
     this.stopWatch();
@@ -185,6 +189,21 @@
         self.retryHandover();
       }
     }, 8000);
+  };
+
+  // Makes the new connection the one in use before it has said anything;
+  // its first message then arrives as an ordinary message.
+  Link.prototype.promoteNext = function () {
+    var old = this.ws;
+    this.ws = this.next;
+    this.next = null;
+    this.retiring = old;
+    this.lastMsg = Date.now();
+    if (this.ws.ttl) this.scheduleHandover(this.ws.ttl);
+    var self = this;
+    setTimeout(function () {
+      if (self.retiring === old) { self.retiring = null; try { old.close(); } catch (e) { /* ignore */ } }
+    }, 3000);
   };
 
   Link.prototype.adopt = function (ws) {
