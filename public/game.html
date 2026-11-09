@@ -24,6 +24,26 @@
   #tournamentOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:100;flex-direction:column;align-items:center;justify-content:center;font-family:'Courier New',monospace;color:#A6FF00;padding:16px;overflow:auto}
   #tournamentOverlay.visible{display:flex}
 
+  /* ── Multiplayer panel (opens the /live big screen) ── */
+  #mpOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.74);z-index:100;align-items:center;justify-content:center;font-family:'Courier New',monospace;color:#00E5FF;padding:16px;overflow:auto}
+  #mpOverlay.visible{display:flex}
+  #mpPanel{width:min(640px,94vw);padding:24px 26px;background:linear-gradient(180deg,rgba(0,16,20,0.97),rgba(0,8,10,0.96));border:1.5px solid rgba(0,229,255,0.7);box-shadow:0 0 34px rgba(0,229,255,0.16);display:flex;flex-direction:column;gap:16px}
+  #mpPanel h2{margin:0;font-size:30px;letter-spacing:4px;text-shadow:0 0 20px rgba(0,229,255,0.55)}
+  #mpPanel p{margin:0;color:#9fd8de;font-size:13px;line-height:1.5;letter-spacing:.5px}
+  #mpWays{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .mp-way{border:1px solid rgba(0,229,255,0.32);padding:12px;display:flex;flex-direction:column;gap:6px}
+  .mp-way b{color:#F3F7EC;font-size:13px;letter-spacing:1px}
+  .mp-way span{color:#86b9bf;font-size:11px;line-height:1.4}
+  .mp-way svg{width:30px;height:30px}
+  #mpActions{display:flex;gap:10px}
+  #mpActions button{font-family:'Courier New',monospace;letter-spacing:2px;cursor:pointer;padding:12px 16px}
+  #mpBack{background:transparent;border:1.5px solid rgba(0,229,255,0.4);color:#86b9bf;font-size:13px}
+  #mpGo{flex:1;background:rgba(0,229,255,0.14);border:1.5px solid #00E5FF;color:#00E5FF;font-size:15px;font-weight:bold}
+  #mpActions button:hover,#mpActions button.pad-on{box-shadow:0 0 14px rgba(0,229,255,0.4);background:rgba(0,229,255,0.2)}
+  #mpActions button:focus-visible{outline:2px solid #F3F7EC;outline-offset:2px}
+  #mpNote{font-size:11px;color:#5f9097;letter-spacing:.5px}
+  @media (max-width:560px){#mpWays{grid-template-columns:1fr}#mpPanel h2{font-size:24px}}
+
   /* Top heading (outside panel) */
   #tournamentOverlay h1{font-size:28px;letter-spacing:6px;margin-bottom:3px;text-shadow:0 0 24px #A6FF00,0 0 48px rgba(166,255,0,0.35);text-align:center}
   #tournamentOverlay .t-sub{font-size:10px;color:#4A7300;margin-bottom:14px;letter-spacing:3px;text-align:center}
@@ -350,6 +370,31 @@
 </div>
 <div id="topBtns"><button id="pauseBtn">II</button><button id="restartBtn">R</button></div>
 <div id="controllerStatus" aria-live="polite">CONTROLLER READY</div>
+<div id="mpOverlay" role="dialog" aria-modal="true" aria-labelledby="mpTitle">
+  <div id="mpPanel">
+    <h2 id="mpTitle">MULTIPLAYER</h2>
+    <p>Up to 16 buses in one round, on one big screen. Open it on a laptop or TV at your event.</p>
+    <div id="mpWays">
+      <div class="mp-way">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="9" y="3" width="14" height="26" rx="3" fill="none" stroke="#00E5FF" stroke-width="2"/><rect x="13" y="24" width="6" height="2" rx="1" fill="#00E5FF"/></svg>
+        <b>PHONES</b><span>Players scan the QR code. Each phone becomes a joystick.</span>
+      </div>
+      <div class="mp-way">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 10h16c4 0 6 4 6 9s-1 8-4 8c-2 0-3-2-5-4H11c-2 2-3 4-5 4-3 0-4-3-4-8s2-9 6-9z" fill="none" stroke="#00E5FF" stroke-width="2"/><circle cx="11" cy="17" r="2.4" fill="#00E5FF"/><circle cx="22" cy="16" r="1.5" fill="#00E5FF"/><circle cx="25" cy="19" r="1.5" fill="#00E5FF"/></svg>
+        <b>JOYSTICKS</b><span>Plug up to 8 into that computer. Press any button to join.</span>
+      </div>
+      <div class="mp-way">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 26V12l11-7 11 7v14" fill="none" stroke="#00E5FF" stroke-width="2"/><rect x="12" y="17" width="8" height="9" fill="none" stroke="#00E5FF" stroke-width="2"/></svg>
+        <b>HOST PANEL</b><span>Run rounds from your own phone. Press H on the big screen.</span>
+      </div>
+    </div>
+    <div id="mpActions">
+      <button type="button" id="mpBack">◀ BACK</button>
+      <button type="button" id="mpGo">▶ OPEN THE BIG SCREEN</button>
+    </div>
+    <div id="mpNote">You'll need your event key. Keep the big screen open and in front while people play.</div>
+  </div>
+</div>
 <div id="tournamentOverlay">
   <h1>TOURNAMENT MODE</h1>
   <p class="t-sub">FLEET INVADERS — UP TO 8 PLAYERS</p>
@@ -569,6 +614,37 @@ resizeCanvas(); // safe to call now that stars1/stars2 are declared
 
 /* ============================== TOURNAMENT =========================== */
 const tournamentOverlay=document.getElementById('tournamentOverlay');
+
+// ── Title choice: solo (0) or multiplayer (1) ─────────────
+let titleChoice=0;
+const mpOverlay=document.getElementById('mpOverlay');
+let mpFocus=1; // 0 back, 1 open
+function openMultiplayer(){
+  titleChoice=1;
+  mpOverlay.classList.add('visible');
+  mpFocus=1; mpSyncFocus();
+  document.getElementById('mpGo').focus({preventScroll:true});
+}
+function closeMultiplayer(){ mpOverlay.classList.remove('visible'); }
+function goMultiplayer(){ location.href='/live'; }
+function mpSyncFocus(){
+  document.getElementById('mpBack').classList.toggle('pad-on',mpFocus===0);
+  document.getElementById('mpGo').classList.toggle('pad-on',mpFocus===1);
+}
+document.getElementById('mpBack').addEventListener('click',closeMultiplayer);
+document.getElementById('mpGo').addEventListener('click',goMultiplayer);
+mpOverlay.addEventListener('click',e=>{ if(e.target===mpOverlay) closeMultiplayer(); });
+// The two choices on the title screen, in game units (see drawTitle).
+function titleBars(){
+  const w=Math.min(BASE_W*0.72,560), x=BASE_W/2-w/2;
+  return { solo:{x,y:BASE_H*0.762-23,w,h:34}, multi:{x,y:BASE_H*0.762+19,w,h:40} };
+}
+function inBar(b,px,py){ return px>=b.x&&px<=b.x+b.w&&py>=b.y&&py<=b.y+b.h; }
+// Space, Enter, a click or a controller's A on the title screen.
+function titleConfirm(){
+  if(titleChoice===1) openMultiplayer();
+  else gs=STATE.WELCOME;
+}
 const playerNameInput=document.getElementById('playerNameInput');
 const addPlayerBtn=document.getElementById('addPlayerBtn');
 const playerListEl=document.getElementById('playerList');
@@ -1002,6 +1078,18 @@ window.addEventListener('keydown',e=>{
     else if(e.code==='Enter'&&!e.repeat&&e.target===document.body) submitSetupName();
     return;
   }
+  if(mpOverlay.classList.contains('visible')){
+    if(e.code==='Escape'||e.code==='Backspace'){ e.preventDefault(); closeMultiplayer(); }
+    else if(e.code==='ArrowLeft'||e.code==='KeyA'){ mpFocus=0; mpSyncFocus(); document.getElementById('mpBack').focus({preventScroll:true}); }
+    else if(e.code==='ArrowRight'||e.code==='KeyD'){ mpFocus=1; mpSyncFocus(); document.getElementById('mpGo').focus({preventScroll:true}); }
+    else if((e.code==='Enter'||e.code==='Space')&&!e.repeat){ e.preventDefault(); if(mpFocus) goMultiplayer(); else closeMultiplayer(); }
+    return;
+  }
+  if(gs===STATE.TITLE){
+    if(e.code==='ArrowUp'||e.code==='KeyW'){ e.preventDefault(); titleChoice=0; }
+    if(e.code==='ArrowDown'||e.code==='KeyS'){ e.preventDefault(); titleChoice=1; }
+    if(e.code==='KeyL'){ openMultiplayer(); return; }
+  }
   keys[e.code]=true; lastInput='key';
   if(e.code==='Space'){e.preventDefault(); shootHeld=true; tryShoot();}
   if(e.code==='KeyP'){togglePause();}
@@ -1010,7 +1098,7 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Escape'&&gs===STATE.HOW_TO_PLAY){gs=STATE.TITLE;}
   else if(e.code==='Escape'&&gs===STATE.WELCOME){gs=STATE.TITLE;}
   if(e.code==='Enter'||e.code==='Space'){
-    if(gs===STATE.TITLE) gs=STATE.WELCOME;
+    if(gs===STATE.TITLE) titleConfirm();
     else if(gs===STATE.WELCOME) gs=STATE.HOW_TO_PLAY;
     else if(gs===STATE.HOW_TO_PLAY) openNameEntry();
     else if(gs===STATE.PLAYER_INTRO) startGame();
@@ -1049,10 +1137,22 @@ canvas.addEventListener('mousemove',e=>{
   const nx=(e.clientX-r.left)/scale;
   if(Math.abs(nx-mouseX)>0.5){ lastInput='mouse'; mouseMovedAt=performance.now(); }
   mouseX=nx; mouseY=(e.clientY-r.top)/scale;
+  if(gs===STATE.TITLE){
+    const tb=titleBars();
+    if(inBar(tb.multi,mouseX,mouseY)) titleChoice=1;
+    else if(inBar(tb.solo,mouseX,mouseY)) titleChoice=0;
+    canvas.style.cursor=inBar(tb.multi,mouseX,mouseY)||inBar(tb.solo,mouseX,mouseY)?'pointer':'';
+  } else if(canvas.style.cursor) canvas.style.cursor='';
 });
 canvas.addEventListener('mousedown',e=>{
   mousePressed=true; shootHeld=true; lastInput='mouse'; mouseMovedAt=performance.now();
-  if(gs===STATE.TITLE) gs=STATE.WELCOME;
+  if(gs===STATE.TITLE){
+    // A click on Multiplayer opens it; a click anywhere else starts solo, as before.
+    const r=canvas.getBoundingClientRect();
+    const px=(e.clientX-r.left)/scale, py=(e.clientY-r.top)/scale;
+    if(inBar(titleBars().multi,px,py)) openMultiplayer();
+    else { titleChoice=0; gs=STATE.WELCOME; }
+  }
   else if(gs===STATE.WELCOME) gs=STATE.HOW_TO_PLAY;
   else if(gs===STATE.HOW_TO_PLAY) openNameEntry();
   else if(gs===STATE.PLAYER_INTRO) startGame();
@@ -1200,7 +1300,7 @@ function handleGamepadConfirm(){
     updateSetupSelection();
     return;
   }
-  if(gs===STATE.TITLE){ gs=STATE.WELCOME; }
+  if(gs===STATE.TITLE){ titleConfirm(); }
   else if(gs===STATE.WELCOME){ gs=STATE.HOW_TO_PLAY; }
   else if(gs===STATE.HOW_TO_PLAY){ openNameEntry(); enableGamepadSetup(); }
   else if(gs===STATE.PLAYER_INTRO) startGame();
@@ -1248,7 +1348,12 @@ function updateGamepadInput(){
   const nav=gamepadNavDirection(gp);
 
   if(gamepadDirX!==0 || fireNow || backPressed || startPressed || nav.x || nav.y) lastInput='gamepad';
-  if(FleetResults.visible){
+  if(mpOverlay.classList.contains('visible')){
+    if(nav.x){ mpFocus=nav.x<0?0:1; mpSyncFocus(); }
+    if(confirmPressed||startPressed){ if(mpFocus) goMultiplayer(); else closeMultiplayer(); }
+    if(backPressed) closeMultiplayer();
+    gamepadFireHeld=false;
+  } else if(FleetResults.visible){
     if(confirmPressed||startPressed) FleetResults.primary();
     if(backPressed) FleetResults.secondary();
     if(nav.y) FleetResults.scrollBoard(nav.y);
@@ -1265,6 +1370,7 @@ function updateGamepadInput(){
     if(backPressed) handleGamepadBack();
     gamepadFireHeld=false;
   } else {
+    if(gs===STATE.TITLE && nav.y) titleChoice=nav.y<0?0:1;
     if(confirmPressed) handleGamepadConfirm();
     if(backPressed) handleGamepadBack();
     if(startPressed){
@@ -2785,35 +2891,51 @@ function drawTitle(){
   ctx.save(); ctx.translate(BASE_W/2,BASE_H*0.665); ctx.scale(1.2,1.2);
   drawBus(0,0,1,Math.sin(t*1.5)*0.04,0); ctx.restore();
 
-  // ── Press start (pulsing lime box) ─────────────────────
+  // ── Two choices: solo (lime) and multiplayer (cyan) ────
   const bA=0.60+(Math.sin(t*3.4)+1)*0.20;
   const _lb=getButtonLabels();
-  const startTxt=gamepadIndex!==null?`▶  PRESS ${_lb.confirm} OR ${_lb.pause} TO BEGIN`:'▶  PRESS SPACE OR CLICK TO START';
-  const startY=BASE_H*0.778;
-  ctx.save();
-  // glowing box behind start text
-  const sbW=Math.min(BASE_W*0.72,560),sbH=34;
-  const sbX=BASE_W/2-sbW/2;
-  ctx.globalAlpha=bA*0.92;
-  ctx.fillStyle='rgba(0,30,8,0.78)'; ctx.fillRect(sbX,startY-23,sbW,sbH);
-  ctx.strokeStyle=C.lime; ctx.lineWidth=1.5;
-  ctx.shadowBlur=18*bA; ctx.shadowColor=C.lime;
-  ctx.strokeRect(sbX,startY-23,sbW,sbH);
-  ctx.shadowBlur=0;
-  ctx.fillStyle=C.lime; ctx.font='bold 17px Courier New'; ctx.textAlign='center';
-  ctx.fillText(startTxt,BASE_W/2,startY-1);
-  ctx.restore();
+  const pad=gamepadIndex!==null;
+  const tb=titleBars();
+  const drawChoice=(b,on,col,glow,label,key,sub)=>{
+    ctx.save();
+    ctx.globalAlpha=on?bA*0.95:0.55;
+    ctx.fillStyle=on?'rgba(0,30,8,0.82)':'rgba(0,12,4,0.7)';
+    if(col===C.cyan) ctx.fillStyle=on?'rgba(0,26,32,0.85)':'rgba(0,10,14,0.7)';
+    ctx.fillRect(b.x,b.y,b.w,b.h);
+    ctx.strokeStyle=col; ctx.lineWidth=on?1.5:1;
+    if(on){ ctx.shadowBlur=18*bA; ctx.shadowColor=glow; }
+    ctx.strokeRect(b.x,b.y,b.w,b.h);
+    ctx.shadowBlur=0; ctx.globalAlpha=on?1:0.7;
+    ctx.fillStyle=col; ctx.font='bold 17px Courier New'; ctx.textAlign='center';
+    const ty=sub?b.y+19:b.y+b.h/2+6;
+    ctx.fillText(label,BASE_W/2,ty);
+    if(sub){ ctx.font='bold 9px Courier New'; ctx.globalAlpha=on?0.8:0.55; ctx.fillText(sub,BASE_W/2,b.y+33); }
+    if(key){ // the key that picks this choice, at the right end of the bar
+      ctx.globalAlpha=on?0.85:0.5; ctx.font='bold 9px Courier New'; ctx.textAlign='right';
+      ctx.fillText(key,b.x+b.w-12,b.y+b.h/2+4);
+    }
+    ctx.restore();
+  };
+  const narrow=BASE_W<600; // phones: no key labels, shorter words
+  drawChoice(tb.solo,titleChoice===0,C.lime,C.lime,(titleChoice===0?'▶  ':'')+'PLAY SOLO',narrow?'':pad?_lb.confirm:'SPACE',null);
+  drawChoice(tb.multi,titleChoice===1,C.cyan,C.cyan,(titleChoice===1?'◆  ':'')+'MULTIPLAYER',narrow||pad?'':'L',narrow?'PHONES · JOYSTICKS · BIG SCREEN':'BIG SCREEN · PHONES SCAN IN · JOYSTICKS PLUG IN');
+  if(!narrow){ // a small NEW tag on the multiplayer bar
+    ctx.save(); ctx.font='bold 9px Courier New';
+    const nw=ctx.measureText('NEW').width+10, nx=tb.multi.x+12, ny=tb.multi.y+tb.multi.h/2-7;
+    ctx.fillStyle=C.cyan; ctx.globalAlpha=titleChoice===1?1:0.6; ctx.fillRect(nx,ny,nw,14);
+    ctx.fillStyle='#001418'; ctx.textAlign='left'; ctx.fillText('NEW',nx+5,ny+10); ctx.restore();
+  }
   if(Math.floor(t*2)%2===0){
     ctx.fillStyle='rgba(166,255,0,0.44)'; ctx.font='10px Courier New'; ctx.textAlign='center';
-    ctx.fillText(gamepadIndex!==null?`STICK/D-PAD MOVE  —  ${_lb.fire} FIRE  —  ${_lb.pause} PAUSE`:'A/D  MOVE  —  SPACE/CLICK  FIRE  —  P  PAUSE',BASE_W/2,BASE_H*0.812);
+    ctx.fillText(narrow?'TAP A CHOICE':pad?`D-PAD CHOOSE  —  ${_lb.confirm} START  —  STICK MOVE  —  ${_lb.fire} FIRE`:'↑/↓ CHOOSE  —  SPACE/CLICK START  —  A/D MOVE  —  P PAUSE',BASE_W/2,BASE_H*0.878);
   }
 
   // ── Hi Score ────────────────────────────────────────────
   ctx.save(); ctx.shadowBlur=18; ctx.shadowColor=C.yellow;
   ctx.fillStyle=C.yellow; ctx.font='bold 14px Courier New'; ctx.textAlign='center';
-  ctx.fillText('HI  '+String(hiScore).padStart(7,'0'),BASE_W/2,BASE_H*0.852); ctx.restore();
+  ctx.fillText('HI  '+String(hiScore).padStart(7,'0'),BASE_W/2,BASE_H*0.914); ctx.restore();
   ctx.fillStyle='rgba(166,255,0,0.28)'; ctx.font='10px Courier New'; ctx.textAlign='center';
-  ctx.fillText('SURVIVE 6 WAVES — THEN ENTER OVERDRIVE',BASE_W/2,BASE_H*0.890);
+  ctx.fillText('SURVIVE 6 WAVES — THEN ENTER OVERDRIVE',BASE_W/2,BASE_H*0.945);
   ctx.fillStyle='rgba(166,255,0,0.18)'; ctx.font='8px Courier New';
   ctx.fillText('FLEET ZERO PRODUCTION FLEET MAINTENANCE DIVISION — SYSTEM ONLINE',BASE_W/2,BASE_H-10);
 }

@@ -1086,6 +1086,24 @@
     if (key === 'e' && G.phase === 'play') endRound();
   });
 
+  // Keep the computer from sleeping while an event runs, and check the
+  // connection the moment this page is back in front.
+  let wake = null;
+  function keepAwake() {
+    if (!G.creds || wake || document.hidden || !('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(l => {
+      wake = l;
+      l.addEventListener('release', () => { wake = null; });
+    }).catch(() => { /* not allowed here */ });
+  }
+  setInterval(keepAwake, 5000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    keepAwake();
+    if (link && !link.stopped) link.nudge();
+    last = now(); // no catch-up jump in the game after a pause
+  });
+
   // For automated tests.
   window.FleetScreen = { G, startPlay, endRound, pads, room: () => link };
 })();

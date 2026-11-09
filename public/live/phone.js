@@ -50,9 +50,14 @@
   }
 
   var slowTimer = null;
-  function connecting(msg) {
+  var SLOW_NET = "Still trying. If you're on the venue Wi-Fi, turn Wi-Fi off to use mobile data.";
+  var SLOW_SCREEN = "Your phone is connected. The big screen isn't answering: ask the host to check it's open and in front. You'll join as soon as it's back.";
+
+  // hint: shown after a few seconds; it says what is most likely wrong.
+  function connecting(msg, hint) {
     show('s-connect');
     $('connect-msg').textContent = msg || 'Connecting to the big screen…';
+    $('slow').textContent = hint || SLOW_NET;
     $('slow').hidden = true;
     clearTimeout(slowTimer);
     slowTimer = setTimeout(function () { if (current === 's-connect') $('slow').hidden = false; }, 4500);
@@ -162,7 +167,7 @@
         route(m.why);
         return;
       case 'wait':
-        if (!S.joined) connecting('Waiting for the big screen…');
+        if (!S.joined) connecting('Waiting for the big screen…', SLOW_SCREEN);
         return;
       case 'tick': return onTick(m);
       case 'me':
@@ -213,8 +218,16 @@
     if (why === 'noscreen' && S.token && (S.offline = (S.offline || 0) + 1) <= 20) {
       // The big screen is reloading or asleep: keep the seat and try again.
       if (link) { link.stop(); link = null; }
-      connecting('The big screen is offline. Trying again…');
+      connecting('The big screen is offline. Trying again…', SLOW_SCREEN);
       setTimeout(function () { if (current === 's-connect') open(); }, 15000);
+      return;
+    }
+    if (why === 'noscreen' && !S.token && S.code && (S.offline = (S.offline || 0) + 1) <= 8) {
+      // A new player whose big screen went quiet: keep trying the same code.
+      // If the code runs out meanwhile, the code screen asks for the new one.
+      if (link) { link.stop(); link = null; }
+      connecting('The big screen is offline. Trying again…', SLOW_SCREEN);
+      setTimeout(function () { if (current === 's-connect') open(); }, 10000);
       return;
     }
     if (why === 'token' || why === 'ended' || why === 'room' || why === 'noscreen') {

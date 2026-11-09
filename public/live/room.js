@@ -67,7 +67,8 @@
     this.padCount = 0; // joysticks plugged into this computer
     this.load();
     var self = this;
-    this.checkTimer = setInterval(function () { self.checkHolds(); }, CHECK_MS);
+    // Kept on pace in a background tab too (see LiveLink.every).
+    this.checkTimer = root.LiveLink.every(CHECK_MS, function () { self.checkHolds(); self.checkCode(); });
     if (root.addEventListener) root.addEventListener('pagehide', function () { if (!self.stopped) self.saveNow(); });
     this.link = new root.LiveLink({
       url: opts.url,
@@ -276,11 +277,13 @@
     this.out.push([cid, msg]);
     if (this.outTimer) return;
     var self = this;
-    this.outTimer = setTimeout(function () { self.flushOut(); }, 0);
+    // Sent at the end of this task, not on a timer: a background tab can hold
+    // timers back for up to a minute, and phones would wait for their welcome.
+    this.outTimer = true;
+    Promise.resolve().then(function () { if (self.outTimer) self.flushOut(); });
   };
 
   Room.prototype.flushOut = function () {
-    clearTimeout(this.outTimer);
     this.outTimer = null;
     if (!this.out.length) return;
     var list = this.out;
@@ -345,9 +348,18 @@
 
   // ---------------------------------------------------------------- codes
 
+  // A safety net for the code timer, which a background tab can slow down:
+  // ask for a new code when the current one is about to run out.
+  Room.prototype.checkCode = function () {
+    if (!this.ready || this.stopped) return;
+    var now = Date.now();
+    if (now >= (this.meta.codeEnds || 0) - 1000 && now - (this.codeAskedAt || 0) > 4000) this.requestCode();
+  };
+
   Room.prototype.requestCode = function () {
     clearTimeout(this.codeTimer);
     var self = this;
+    this.codeAskedAt = Date.now();
     this.link.send({ t: 'code' });
     // If the answer does not come, ask again.
     this.codeTimer = setTimeout(function () { self.requestCode(); }, 5000);
@@ -802,7 +814,7 @@
   Room.prototype.stop = function () {
     if (!this.stopped && this.meta) this.saveNow();
     this.stopped = true;
-    clearInterval(this.checkTimer);
+    this.checkTimer.stop();
     clearTimeout(this.codeTimer);
     clearTimeout(this.serverSaveTimer);
     this.link.stop();
