@@ -68,6 +68,14 @@ export function hashEventKey(key) {
   });
 }
 
+// Vercel does not pass a close started here on to the page, so close
+// politely and then cut the connection a moment later.
+function closeWs(ws, code, why) {
+  try { ws.close(code, why); } catch { /* already closed */ }
+  const t = setTimeout(() => { try { ws.terminate(); } catch { /* gone */ } }, 1000);
+  if (t.unref) t.unref();
+}
+
 function json(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
   res.end(JSON.stringify(body));
@@ -277,7 +285,7 @@ export function createLiveServer(opts = {}) {
     // Accept, explain and close, so the page can say what went wrong.
     const refuse = why => accept(ws => {
       send(ws, { t: 'err', why });
-      ws.close(4000, why);
+      closeWs(ws, 4000, why);
     });
     if (!originAllowed(req)) return refuse('origin');
     const ip = clientIp(req);
@@ -333,7 +341,7 @@ export function createLiveServer(opts = {}) {
     if (conn.role === 'screen') {
       becomeScreen(conn, c.info).catch(e => {
         console.error('[live] screen', e);
-        ws.close(1011, 'server');
+        closeWs(ws, 1011, 'server');
       });
     } else {
       R.members.add(conn.cid);
@@ -342,7 +350,7 @@ export function createLiveServer(opts = {}) {
         .then(() => queueUp(R, ['o', conn.cid, conn.role, c.q || null, conn.ip]))
         .catch(e => {
           console.error('[live] subscribe', e);
-          ws.close(1011, 'server');
+          closeWs(ws, 1011, 'server');
         });
     }
   }
@@ -353,7 +361,7 @@ export function createLiveServer(opts = {}) {
     R.screen = conn;
     if (old && old !== conn) {
       send(old.ws, { t: 'replaced' });
-      old.ws.close(4001, 'replaced');
+      closeWs(old.ws, 4001, 'replaced');
     }
     const bus = await getBus();
     await subscribe(R, 's');
@@ -453,7 +461,7 @@ export function createLiveServer(opts = {}) {
       ev.since = ev.since || now;
       R.waiting.push(ev);
     }
-    // Back off (1, 2, 4, 8 s…) so a closed room costs only a few Redis messages.
+    // Back off (1, 2, 4, 8 sâ€¦) so a closed room costs only a few Redis messages.
     if (!R.waitTimer) {
       R.waitTries = (R.waitTries || 0) + 1;
       R.waitTimer = setTimeout(() => retryWaiting(R), Math.min(15_000, RETRY_MS * 2 ** (R.waitTries - 1)));
@@ -471,7 +479,7 @@ export function createLiveServer(opts = {}) {
       if (now - ev.since > GIVE_UP_MS) {
         if (ev[0] === 'o' && c) {
           send(c.ws, { t: 'err', why: 'noscreen' });
-          c.ws.close(4000, 'noscreen');
+          closeWs(c.ws, 4000, 'noscreen');
         }
         continue;
       }
@@ -517,7 +525,7 @@ export function createLiveServer(opts = {}) {
       if (kind === 's') send(c.ws, d[2]);
       else {
         if (d[4]) send(c.ws, d[4]);
-        c.ws.close(d[2], d[3]);
+        closeWs(c.ws, d[2], d[3]);
       }
       return false;
     }
@@ -611,7 +619,7 @@ export function createLiveServer(opts = {}) {
         if (old) {
           R.screen = null;
           send(old.ws, { t: 'replaced' });
-          old.ws.close(4001, 'replaced');
+          closeWs(old.ws, 4001, 'replaced');
         }
         unsubscribe(R, 's');
         return;
