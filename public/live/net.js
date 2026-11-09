@@ -5,6 +5,26 @@
 // when ({t:'ttl'}), and about a minute before, the link opens a second
 // connection and moves over once it works, so play never stops.
 (function (root) {
+  // Calls fn every ms milliseconds. In a background tab, browsers slow page
+  // timers to about once a minute, which would stop the "still here" pings
+  // and the reconnects. Timers inside a worker keep their pace, so a worker
+  // does the counting when the browser has one.
+  function every(ms, fn) {
+    try {
+      if (root.Worker && root.Blob && root.URL && root.URL.createObjectURL && typeof document !== 'undefined') {
+        var src = 'var t=null;onmessage=function(e){clearInterval(t);if(e.data>0)t=setInterval(function(){postMessage(0)},e.data)};';
+        var url = root.URL.createObjectURL(new root.Blob([src], { type: 'text/javascript' }));
+        var w = new root.Worker(url);
+        root.URL.revokeObjectURL(url);
+        w.onmessage = function () { fn(); };
+        w.postMessage(ms);
+        return { stop: function () { w.terminate(); } };
+      }
+    } catch (e) { /* no workers here: use a plain timer */ }
+    var id = setInterval(fn, ms);
+    return { stop: function () { clearInterval(id); } };
+  }
+
   function Link(opts) {
     this.opts = opts;
     this.ws = null; // the connection in use
@@ -14,11 +34,33 @@
     this.tries = 0;
     this.lastMsg = 0;
     this.state = 'idle';
-    this.watch = null;
+    this.watching = false;
     this.retryTimer = null;
+    this.retryAt = 0;
     this.handTimer = null;
+    this.handAt = 0;
+    var self = this;
+    this.clock = every(1000, function () { self.onClock(); });
     this.connect();
   }
+
+  // Once a second, even in a background tab: health checks, reconnects and
+  // handovers whose own timers the browser may have slowed down.
+  Link.prototype.onClock = function () {
+    if (this.stopped) return;
+    var now = Date.now();
+    if (this.state === 'retry' && this.retryAt && now >= this.retryAt) {
+      this.connect();
+      return;
+    }
+    if (this.handAt && now >= this.handAt) this.handover();
+    if (!this.watching || this.state !== 'open') return;
+    var quiet = now - this.lastMsg;
+    if (quiet > 7000) this.restart();
+    // Ping when nothing came in for a while, and also when this page has
+    // sent nothing for 10 s, so the switchboard knows it is still here.
+    else if (quiet > 3500 || now - (this.lastSent || 0) > 10000) this.sendRaw('ping');
+  };
 
   Link.prototype.setState = function (s) {
     if (this.state === s) return;
@@ -41,6 +83,7 @@
   Link.prototype.connect = function () {
     if (this.stopped) return;
     clearTimeout(this.retryTimer);
+    this.retryAt = 0;
     var self = this;
     var ws;
     try {
@@ -135,6 +178,7 @@
     }
     this.stopWatch();
     clearTimeout(this.handTimer);
+    this.handAt = 0;
     if (this.next) {
       var n = this.next;
       this.next = null;
@@ -151,7 +195,8 @@
     var d = delays[Math.min(this.tries, delays.length - 1)];
     this.tries++;
     var self = this;
-    this.retryTimer = setTimeout(function () { self.connect(); }, d);
+    this.retryAt = Date.now() + d;
+    this.retryTimer = setTimeout(function () { if (self.retryAt) self.connect(); }, d);
   };
 
   // ------------------------------------------------------------ handover
@@ -161,17 +206,22 @@
     if (!(ms > 0)) return;
     // About a minute early, spread out so a whole room does not move at once.
     var at = Math.max(Math.min(20000, ms / 2), ms - 60000 + (Math.random() * 20000 - 10000));
+    this.planHandover(at);
+  };
+
+  Link.prototype.planHandover = function (at) {
     var self = this;
-    this.handTimer = setTimeout(function () { self.handover(); }, at);
+    clearTimeout(this.handTimer);
+    this.handAt = Date.now() + at;
+    this.handTimer = setTimeout(function () { if (self.handAt) self.handover(); }, at);
   };
 
   Link.prototype.retryHandover = function () {
-    var self = this;
-    clearTimeout(this.handTimer);
-    this.handTimer = setTimeout(function () { self.handover(); }, 10000);
+    this.planHandover(10000);
   };
 
   Link.prototype.handover = function () {
+    this.handAt = 0;
     if (this.stopped || this.next || !this.ws || this.ws.readyState !== 1) return;
     var ws;
     try {
@@ -226,22 +276,13 @@
 
   // Phones lose their connection silently when the screen locks. If nothing
   // arrives for a few seconds, ask; if nothing answers, start again.
+  // The checks themselves run in onClock.
   Link.prototype.startWatch = function () {
-    var self = this;
-    this.stopWatch();
-    if (!this.opts.watch) return;
-    this.watch = setInterval(function () {
-      var quiet = Date.now() - self.lastMsg;
-      if (quiet > 7000) self.restart();
-      // Ping when nothing came in for a while, and also when this page has
-      // sent nothing for 10 s, so the switchboard knows it is still here.
-      else if (quiet > 3500 || Date.now() - (self.lastSent || 0) > 10000) self.sendRaw('ping');
-    }, 1000);
+    this.watching = !!this.opts.watch;
   };
 
   Link.prototype.stopWatch = function () {
-    clearInterval(this.watch);
-    this.watch = null;
+    this.watching = false;
   };
 
   Link.prototype.closeExtras = function () {
@@ -249,6 +290,7 @@
     this.next = null;
     this.retiring = null;
     clearTimeout(this.handTimer);
+    this.handAt = 0;
     for (var i = 0; i < extras.length; i++) {
       if (extras[i]) { try { extras[i].close(); } catch (e) { /* ignore */ } }
     }
@@ -287,11 +329,14 @@
   Link.prototype.stop = function () {
     this.stopped = true;
     clearTimeout(this.retryTimer);
+    this.retryAt = 0;
+    if (this.clock) this.clock.stop();
     this.stopWatch();
     this.closeExtras();
     if (this.ws) { try { this.ws.close(); } catch (e) { /* ignore */ } }
     this.setState('stopped');
   };
 
+  Link.every = every;
   root.LiveLink = Link;
 })(typeof window !== 'undefined' ? window : globalThis);
