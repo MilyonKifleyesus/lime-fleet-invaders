@@ -123,8 +123,12 @@ export class Client extends Waiter {
 export class Screen extends Waiter {
   constructor(room, host, seats = 16) {
     super();
+    // SCREEN_ALT makes each new big-screen connection alternate between two
+    // copies, like Vercel can, to test a handover that changes copy.
+    const alt = process.env.SCREEN_ALT ? (process.env.SCREEN_ALT.replace(/\/$/, '') + '/api/live').replace(/^http/, 'ws') : null;
+    let turn = 0;
     this.room = new globalThis.LiveRoom({
-      url: () => `${SCREEN_WS}?room=${room}&role=screen&key=${host}`,
+      url: () => `${alt && turn++ % 2 ? alt : SCREEN_WS}?room=${room}&role=screen&key=${host}`,
       room, seats, wsInit,
       onMessage: m => { this.msgs.push(m); this.check(); },
       onBinary: d => { this.bins.push({ at: performance.now(), data: d }); this.check(); },
