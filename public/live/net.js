@@ -55,7 +55,7 @@
     // A handshake that hangs (a blocking network) counts as a failure.
     var openTimer = setTimeout(function () {
       if (!opened) { try { ws.close(); } catch (e) { /* ignore */ } }
-    }, this.opts.openTimeout || 6000);
+    }, this.opts.openTimeout || 10000); // a fresh Vercel copy can take a few seconds
     ws.onopen = function () {
       opened = true;
       clearTimeout(openTimer);
