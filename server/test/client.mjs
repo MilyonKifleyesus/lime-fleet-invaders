@@ -90,6 +90,13 @@ export class Client extends Waiter {
         let m;
         try { m = JSON.parse(e.data); } catch { m = { raw: e.data }; }
         if (m.t === 'ttl') return;
+        if (m.t === 'end') {
+          // The switchboard's way of saying it closed this connection.
+          this.closed = { code: m.code, reason: m.why || '' };
+          try { this.ws.close(); } catch { /* ignore */ }
+          this.check();
+          return;
+        }
         this.msgs.push(m);
       } else {
         this.bins.push({ at: performance.now(), data: new Uint8Array(e.data) });
