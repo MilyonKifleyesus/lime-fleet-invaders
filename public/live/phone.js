@@ -196,6 +196,7 @@
         renderMe();
         return;
       case 'fx': return fx(m.k);
+      case 'mv': return onMove(m);
       case 'res': return showCard(m);
       case 'name':
         S.name = m.name;
@@ -387,7 +388,7 @@
   // ------------------------------------------------------------ driving
 
   var strip = $('strip');
-  var ctrl = { on: false, ax: 0, q: 0, lastQ: null, lastSend: 0, seq: 0, timer: null, keep: null, key: 0 };
+  var ctrl = { on: false, ax: 0, q: 0, lastQ: null, lastSend: 0, seq: 0, timer: null, keep: null, key: 0, btn: 0 };
 
   function knob(d, axPct) {
     strip.style.setProperty('--kx', clamp(axPct + d * 32, 12, 88) + '%');
@@ -398,7 +399,8 @@
     ctrl.lastQ = q;
     ctrl.lastSend = performance.now();
     ctrl.seq = (ctrl.seq + 1) & 255;
-    if (link) link.sendRaw(new Uint8Array([q + 100, 1, ctrl.seq]));
+    // Byte 2: bit 0 = touching, then the moves: 2 dash, 4 shield, 8 charge.
+    if (link) link.sendRaw(new Uint8Array([q + 100, 1 | ctrl.btn, ctrl.seq]));
   }
 
   // Sends only when the stick moved, at most 20 times a second.
@@ -478,6 +480,76 @@
   // Stop the page itself from scrolling or zooming under the thumb.
   document.addEventListener('touchmove', function (e) { if (current === 's-drive') e.preventDefault(); }, { passive: false });
 
+  // ------------------------------------------------------------ moves
+
+  // Dash, shield and charge buttons. They send right away, not on the
+  // 20-a-second steering clock, so a tap is never lost.
+  var mvCharge = { t0: 0, raf: 0 };
+  function setBit(bit, on) {
+    var next = on ? ctrl.btn | bit : ctrl.btn & ~bit;
+    if (next === ctrl.btn) return;
+    ctrl.btn = next;
+    sendInput(ctrl.q);
+  }
+  [].forEach.call(document.querySelectorAll('.mv'), function (el) {
+    var bit = Number(el.getAttribute('data-bit'));
+    function down(e) {
+      e.preventDefault();
+      if (el.classList.contains('cool') || el.classList.contains('used')) return;
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      el.classList.add('held');
+      setBit(bit, true);
+      vibrate(8);
+      if (bit === 8) chargeStart(el);
+    }
+    function up() {
+      if (!el.classList.contains('held')) return;
+      el.classList.remove('held', 'full');
+      setBit(bit, false);
+      if (bit === 8) chargeStop(el);
+    }
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('lostpointercapture', up);
+    el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  });
+  function chargeStart(el) {
+    mvCharge.t0 = performance.now();
+    var bar = el.querySelector('i');
+    var buzzed = false;
+    (function tick() {
+      var k = Math.min(1, (performance.now() - mvCharge.t0) / 1000);
+      bar.style.width = (k * 100) + '%';
+      if (k >= 1 && !buzzed) { buzzed = true; el.classList.add('full'); vibrate(25); }
+      mvCharge.raf = requestAnimationFrame(tick);
+    })();
+  }
+  function chargeStop(el) {
+    cancelAnimationFrame(mvCharge.raf);
+    el.querySelector('i').style.width = '0';
+  }
+  // The big screen confirms a move: show its cool-down.
+  function onMove(m) {
+    if (m.k === 'dash') {
+      var d = $('mv-dash'), bar = d.querySelector('i'), t0 = performance.now(), cd = (m.cd || 2) * 1000;
+      d.classList.add('cool');
+      vibrate(15);
+      (function tick() {
+        var k = (performance.now() - t0) / cd;
+        bar.style.width = Math.max(0, 100 - k * 100) + '%';
+        if (k < 1) requestAnimationFrame(tick); else { d.classList.remove('cool'); bar.style.width = '0'; }
+      })();
+    } else if (m.k === 'shield') {
+      $('mv-shield').classList.add('used');
+      $('mv-shield').querySelector('span').textContent = 'Back next wave';
+      vibrate([20, 30, 40]);
+    } else if (m.k === 'ready') {
+      $('mv-shield').classList.remove('used');
+      $('mv-shield').querySelector('span').textContent = 'Once a wave';
+    }
+  }
+
   function renderMe() {
     var pips = $('d-hull').children;
     for (var i = 0; i < pips.length; i++) pips[i].classList.toggle('off', i >= S.hull);
@@ -507,6 +579,11 @@
       clearInterval(wreckTimer);
       $('d-wreck').hidden = true;
       vibrate(20);
+    } else if (k === 'big') {
+      drive.classList.remove('kill', 'hit');
+      void drive.offsetWidth;
+      drive.classList.add('kill');
+      vibrate([30, 20, 60]);
     }
   }
 
