@@ -105,6 +105,14 @@ p{margin:0}
 .strip .knob{position:absolute;top:50%;left:var(--kx,50%);width:84px;height:84px;margin:-42px 0 0 -42px;border-radius:50%;background:var(--pci);box-shadow:0 8px 20px color-mix(in srgb,var(--pci) 45%,transparent);display:grid;place-items:center}
 .strip .knob::before{content:"";width:36px;height:18px;background:var(--pc);clip-path:polygon(0 50%,34% 0,34% 100%,0 50%,100% 50%,66% 0,66% 100%,100% 50%)}
 .strip .hint{position:absolute;left:0;right:0;bottom:16px;text-align:center;font:700 12px/1 var(--ui);letter-spacing:.14em;text-transform:uppercase;opacity:.85;pointer-events:none}
+.moves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mv{position:relative;overflow:hidden;display:grid;gap:3px;justify-items:center;padding:12px 10px 12px;border-radius:18px;background:color-mix(in srgb,var(--pci) 13%,transparent);color:var(--pci);touch-action:none;-webkit-user-select:none;user-select:none}
+.mv b{font:800 19px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.mv span{font:600 11px/1.15 var(--ui);opacity:.8}
+.mv i{position:absolute;left:0;bottom:0;height:4px;width:0;background:var(--pci);transition:none}
+.mv.held{background:var(--pci);color:var(--pc)}
+.mv.cool,.mv.used{opacity:.45}
+.mv.full{box-shadow:inset 0 0 0 3px var(--pci)}
 .chip{display:inline-flex;align-items:center;gap:6px;font:700 12px/1 var(--ui);letter-spacing:.08em;text-transform:uppercase;padding:9px 13px;border-radius:99px;background:color-mix(in srgb,var(--pci) 12%,transparent)}
 .cover{position:absolute;inset:0;z-index:5;display:grid;place-content:center;text-align:center;gap:10px;padding:24px;background:color-mix(in srgb,var(--pci) 86%,transparent);color:var(--pc)}
 .cover b{font:900 120px/1 var(--led)}
@@ -203,6 +211,11 @@ p{margin:0}
     <div class="strip" id="strip" role="slider" tabindex="0" aria-label="Steer your bus" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
       <div class="rail"></div><div class="anchor"></div><div class="knob"></div>
       <span class="hint">Drag left or right</span>
+    </div>
+    <div class="moves" role="group" aria-label="Moves">
+      <button type="button" class="mv" id="mv-dash" data-bit="2"><b>Dash</b><span>Quick sideways burst</span><i></i></button>
+      <button type="button" class="mv" id="mv-shield" data-bit="4"><b>Shield</b><span>Once a wave</span><i></i></button>
+      <button type="button" class="mv" id="mv-charge" data-bit="8"><b>Charge</b><span>Hold, then let go</span><i></i></button>
     </div>
     <div class="c-row"><span class="chip">Auto-fire on</span><span class="chip" id="d-left">--:--</span></div>
     <div class="cover" id="d-wreck" hidden><b id="d-wreck-n">3</b><span>Your bus is back in a moment,<br>with a shield.</span></div>

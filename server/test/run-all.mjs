@@ -39,6 +39,7 @@ function run(label, env, file = 'live.test.mjs') {
 let failed = 0;
 try {
   failed += await run('joystick reading', {}, 'pads.test.mjs');
+  failed += await run('controller lights', {}, 'lights.test.mjs');
   await startMiniRedis(6390);
   const REDIS_URL = 'redis://127.0.0.1:6390';
   await Promise.all([start(8811), start(8812, { REDIS_URL }), start(8813, { REDIS_URL })]);

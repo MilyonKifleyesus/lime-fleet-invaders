@@ -35,31 +35,280 @@
   // ------------------------------------------------------------ joysticks
 
   // Joysticks plugged into this computer drive buses too; see pads.js.
+  const MOVE = window.FleetPads.MOVE;
   const pads = new window.FleetPads({
-    canJoin: () => G.padsOn && !!link && link.ready && !link.stopped,
-    onJoin: slot => {
+    canJoin: () => G.padsOn && !!link && link.ready && !link.stopped && $('padcheck').hidden,
+    onJoin: (slot, gp) => {
       const id = link.addLocal(slot);
       if (id === null) { pads.release(slot); return; }
       G.slotPid[slot] = id;
-      pads.rumble(slot, 180, 0.7);
+      lights.claim(slot, gp && gp.id, sameKind(gp));
+      pads.play(slot, 'join');
     },
-    onInput: (slot, x, active) => {
+    onInput: (slot, x, active, mv) => {
       const bus = G.buses.get(G.slotPid[slot]);
       if (!bus) return;
       bus.input = x;
-      if (active) { bus.lastInput = now(); bus.benchSent = false; }
+      if (active || mv) { bus.lastInput = now(); bus.benchSent = false; bus.idleBuzz = false; }
+      applyMoves(bus, mv);
+    },
+    // Unplugged: the seat waits 10 seconds for the stick to come back.
+    onPause: slot => {
+      const bus = G.buses.get(G.slotPid[slot]);
+      if (bus) { bus.unplugged = true; bus.input = 0; }
+    },
+    onResume: (slot, gp) => {
+      const bus = G.buses.get(G.slotPid[slot]);
+      if (bus) { bus.unplugged = false; bus.lastInput = now(); bus.benchSent = false; }
+      lights.claim(slot, gp && gp.id, sameKind(gp));
+      pads.play(slot, 'back');
+      toast('Stick ' + (slot + 1) + ' is back', 'lime');
     },
     onGone: slot => {
       const id = G.slotPid[slot];
       G.slotPid[slot] = null;
+      lights.release(slot);
       if (id !== null && link) link.removeLocal(id);
     },
   });
+  // Light bars, player lights and push-back triggers on PlayStation pads.
+  const lights = new window.FleetLights();
+  // How many plugged-in joysticks share this one's model (for matching lights).
+  function sameKind(gp) {
+    const key = gp && (/vendor:\s*\w{4}.*product:\s*\w{4}/i.exec(gp.id) || [gp.id])[0];
+    return [...pads.read()].filter(p => p && p.connected !== false && (/vendor:\s*\w{4}.*product:\s*\w{4}/i.exec(p.id) || [p.id])[0] === key).length;
+  }
+  lights.start();
   let padCount = 0;
+  let lightAt = 0;
   function pollPads() {
-    pads.poll(now());
+    const t = now();
+    pads.poll(t);
     const n = Math.max(pads.seen, pads.taken());
     if (n !== padCount && link) { padCount = n; link.setPads(n); }
+    if (lights.devs.length && t - lightAt > 50) { lightAt = t; updateLights(t); }
+    if (!$('padcheck').hidden) renderCheck();
+  }
+
+  // Vibration and light effect for one bus's player (sticks only; phones
+  // vibrate through their own 'fx' messages).
+  function feel(bus, name, side) {
+    if (!bus || bus.local === null || bus.local === undefined) return;
+    pads.play(bus.local, name, side);
+    // Light effect: only moments that have one, and a weaker one never
+    // cuts off a stronger one still showing (a shot never hides a hit flash).
+    const fx = LFX[name];
+    if (!fx) return;
+    const t = now();
+    const cur = bus.lfx;
+    const P = window.FleetPads.PATTERNS;
+    if (cur && LFX[cur.name] && t - cur.t < LFX[cur.name].reduce((a, s) => a + s[0], 0)
+      && (P[cur.name] ? P[cur.name].prio : 0) > (P[name] ? P[name].prio : 0)) return;
+    bus.lfx = { name, t };
+  }
+  function feelAll(name) {
+    for (const b of G.buses.values()) feel(b, name);
+  }
+
+  // What each stick's light bar shows right now.
+  const LFX = {
+    join: [[140, '#ffffff']], hit: [[90, '#ff2a1f'], [90, null], [90, '#ff2a1f']], wreck: [[160, '#ff2a1f']],
+    back: [[130, '#203040'], [130, null]], power: [[300, '#CC79A7']], wave: [[600, '#7CFF4F']],
+    boss: [[300, '#ff5a1f'], [100, '#401808'], [300, '#ff5a1f'], [100, '#401808'], [400, '#ff5a1f']],
+    count: [[150, '#ffffff']], go: [[300, '#B8FF38']], idle: [[160, '#FF8A1F'], [160, '#2a1a08'], [160, '#FF8A1F']],
+    dash: [[120, '#ffffff']], shield: [[400, '#bff6ff']], bigshot: [[160, '#ffffff']],
+    win: [[110, '#E69F00'], [110, '#56B4E9'], [110, '#009E73'], [110, '#F0E442'], [110, '#3D8FD1'], [110, '#D55E00'], [110, '#CC79A7'], [220, '#B8FF38']],
+  };
+  function dim(hex, k) {
+    const v = parseInt(hex.slice(1), 16);
+    const f = c => Math.round(c * k).toString(16).padStart(2, '0');
+    return '#' + f((v >> 16) & 255) + f((v >> 8) & 255) + f(v & 255);
+  }
+  function lightFor(bus, t) {
+    const base = COL[bus.color] || '#B8FF38';
+    if (bus.unplugged) return Math.floor(t / 400) % 2 ? '#000000' : dim(base, 0.5);
+    if (bus.lfx) {
+      let acc = 0;
+      for (const [ms, col] of LFX[bus.lfx.name] || []) {
+        acc += ms;
+        if (t - bus.lfx.t < acc) return col || base;
+      }
+    }
+    if (bus.wrecked > 0) return dim(base, 0.15);
+    if (G.phase === 'play' && bus.hull === 1) return dim('#FF8A1F', 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t / 160)));
+    if (G.phase === 'play' && t - bus.lastInput > IDLE_WARN_MS) return Math.floor(t / 300) % 2 ? '#FF8A1F' : '#2a1a08';
+    if (bus.charge > 0) return dim('#ffffff', 0.4 + 0.6 * Math.min(1, bus.charge));
+    return base;
+  }
+  function updateLights(t) {
+    for (let s = 0; s < 8; s++) {
+      if (!lights.has(s)) continue;
+      const bus = G.buses.get(G.slotPid[s]);
+      if (!bus) {
+        // Waiting in line or free: breathe softly in the stick's colour.
+        const c = COL[FleetNames.COLORS[s % 7]];
+        lights.set(s, dim(c, 0.15 + 0.15 * (0.5 + 0.5 * Math.sin(t / 600))), s + 1, 'off');
+        continue;
+      }
+      let trig = 'off';
+      if (G.phase === 'play' && !bus.wrecked && !bus.unplugged) trig = bus.charge > 0 ? ['charge', bus.charge / 1.2] : 'blaster';
+      lights.set(s, lightFor(bus, t), s + 1, trig);
+    }
+  }
+
+  // ------------------------------------------------------------ joystick check (J)
+
+  // For setup day: every joystick the browser sees, its kind, live stick and
+  // buttons, a vibration test, arcade stick setup and lights.
+  const WIZ = [
+    ['left', 'Push the stick LEFT and hold it'], ['right', 'Now push it RIGHT and hold it'],
+    ['dash', 'Press the button for DASH'], ['shield', 'Press the button for SHIELD'], ['charge', 'Press the button for CHARGE'],
+  ];
+  const check = { cards: new Map(), wiz: null };
+  function openCheck(on) {
+    $('padcheck').hidden = !on;
+    check.wiz = null;
+    if (on) {
+      $('pc-lights').hidden = !lights.supported;
+      $('pc-note').textContent = lights.supported ? '' : 'Lights need Chrome or Edge on this computer. Vibration works everywhere.';
+      renderCheck();
+    }
+  }
+  $('pc-close').addEventListener('click', () => openCheck(false));
+  $('pc-lights').addEventListener('click', () => {
+    lights.connect().then(n => {
+      $('pc-note').textContent = n ? n + (n === 1 ? ' controller' : ' controllers') + ' ready for lights. Each one lights up when its player presses a button to join.' : 'No controller was approved.';
+    }).catch(() => { $('pc-note').textContent = 'The browser did not allow lights here. Try Chrome or Edge, and plug the controller in by cable.'; });
+  });
+  function slotOfIndex(idx) {
+    for (let s = 0; s < 8; s++) if (pads.slots[s] && pads.slots[s].index === idx) return s;
+    return -1;
+  }
+  function makeCard(gp) {
+    const el = document.createElement('div');
+    el.className = 'pc-pad';
+    el.innerHTML = '<div class="pc-top"><b></b><span></span></div><div class="pc-name"></div>'
+      + '<div class="pc-axis"><i></i></div><div class="pc-btns"></div>'
+      + '<div class="pc-row"><button type="button" data-a="buzz">Test vibration</button><button type="button" data-a="wiz">Set up buttons</button><button type="button" data-a="reset" hidden>Use standard buttons</button><em></em></div>'
+      + '<div class="pc-wiz" hidden></div>';
+    el.addEventListener('click', e => {
+      const a = e.target && e.target.getAttribute('data-a');
+      const p = pads.pads.get(Number(el.dataset.idx));
+      if (!a || !p) return;
+      if (a === 'buzz') {
+        const act = p.vibrationActuator;
+        if (act && act.playEffect) {
+          act.playEffect('dual-rumble', { duration: 250, strongMagnitude: 1, weakMagnitude: 0 }).catch(() => {});
+          setTimeout(() => act.playEffect('dual-rumble', { duration: 250, strongMagnitude: 0, weakMagnitude: 1 }).catch(() => {}), 350);
+          if (act.effects && act.effects.indexOf('trigger-rumble') >= 0) setTimeout(() => act.playEffect('trigger-rumble', { duration: 250, strongMagnitude: 0, weakMagnitude: 0, leftTrigger: 0, rightTrigger: 1 }).catch(() => {}), 700);
+        } else $('pc-note').textContent = 'This controller has no vibration motor, or the browser cannot reach it.';
+      } else if (a === 'wiz') {
+        check.wiz = { idx: p.index, id: p.id, step: 0, rest: window.FleetPads.snapshot(p), map: {}, wait: true };
+      } else if (a === 'reset') {
+        pads.saveMap(p.id, null);
+      }
+    });
+    return el;
+  }
+  function renderCheck() {
+    const list = [...pads.read()].filter(p => p && p.connected !== false);
+    const box = $('pc-list');
+    const seen = new Set();
+    let xin = 0;
+    for (const gp of list) {
+      seen.add(gp.index);
+      if (window.FleetPads.isXInput(gp)) xin++;
+      let card = check.cards.get(gp.index);
+      if (!card) { card = makeCard(gp); check.cards.set(gp.index, card); box.append(card); }
+      card.dataset.idx = gp.index;
+      const slot = slotOfIndex(gp.index);
+      const kind = window.FleetPads.brand(gp);
+      const L = window.FleetPads.LABELS[kind];
+      card.classList.toggle('on', slot >= 0);
+      card.style.setProperty('--c', slot >= 0 ? COL[FleetNames.COLORS[slot % 7]] : 'transparent');
+      card.querySelector('.pc-top b').textContent = slot >= 0 ? 'Stick ' + (slot + 1) : 'Not joined yet';
+      card.querySelector('.pc-top span').textContent = L.name + (gp.mapping === 'standard' ? '' : ' · own layout');
+      card.querySelector('.pc-name').textContent = gp.id;
+      const map = pads.mapFor(gp);
+      const x = window.FleetPads.steer(gp, map);
+      card.querySelector('.pc-axis i').style.left = (50 + x * 46) + '%';
+      const btns = card.querySelector('.pc-btns');
+      if (btns.children.length !== gp.buttons.length) btns.innerHTML = gp.buttons.map((_, i) => '<i>' + i + '</i>').join('');
+      gp.buttons.forEach((b, i) => btns.children[i].classList.toggle('on', !!(b.pressed || b.value > 0.5)));
+      card.querySelector('[data-a="reset"]').hidden = !map;
+      const em = card.querySelector('.pc-row em');
+      const lit = slot >= 0 && lights.has(slot);
+      em.className = lit ? 'ok' : '';
+      em.textContent = kind === 'ps' || kind === 'switch'
+        ? (lit ? 'Lights on' : lights.devs.length ? 'Lights connect when this stick joins' : 'Press Connect lights for colour lights')
+        : kind === 'xbox' ? 'Vibration and trigger kick. No light control on Xbox.' : 'Buttons: ' + L.dash + ' dash, ' + L.shield + ' shield, ' + L.charge + ' charge';
+      // Button setup, one step at a time.
+      const wz = card.querySelector('.pc-wiz');
+      const w = check.wiz && check.wiz.idx === gp.index ? check.wiz : null;
+      wz.hidden = !w;
+      if (w) {
+        const det = window.FleetPads.detect(gp, w.rest);
+        if (w.wait) { if (!det) { w.wait = false; w.rest = window.FleetPads.snapshot(gp); } }
+        else if (det) {
+          w.map[WIZ[w.step][0]] = det;
+          w.step++;
+          w.wait = true;
+          if (w.step >= WIZ.length) {
+            pads.saveMap(w.id, w.map);
+            check.wiz = null;
+            $('pc-note').textContent = 'Saved. Every controller named like this one now uses these buttons.';
+          }
+        }
+        wz.textContent = w.step < WIZ.length ? 'Step ' + (w.step + 1) + ' of ' + WIZ.length + ': ' + WIZ[w.step][1] + (w.wait ? ' (let go first)' : '') : '';
+      }
+    }
+    for (const [idx, card] of check.cards) if (!seen.has(idx)) { card.remove(); check.cards.delete(idx); }
+    let empty = box.querySelector('.pc-empty');
+    if (!list.length && !empty) { empty = document.createElement('p'); empty.className = 'pc-empty'; empty.textContent = 'No joysticks yet. Plug one in and press any button on it.'; box.append(empty); }
+    else if (list.length && empty) empty.remove();
+    $('pc-sum').textContent = list.length
+      ? list.length + (list.length === 1 ? ' joystick' : ' joysticks') + ' seen, ' + xin + ' Xbox-style. Up to 8 work at once.'
+      : 'Press any button on each joystick so the browser can see it.';
+    if (xin >= 4 && !$('pc-note').textContent) $('pc-note').textContent = 'Windows reads at most 4 Xbox-style controllers. Extra sticks must be another kind, such as 8BitDo pads in their other mode, or arcade sticks.';
+  }
+
+  // ------------------------------------------------------------ moves
+
+  // Dash (A), shield burst (B), charge shot (hold right trigger). Phones send
+  // the same bits from their buttons.
+  const DASH_CD = 2.2, DASH_T = 0.16, SHIELD_T = 2.2, CHARGE_MIN = 0.6, CHARGE_FULL = 1.0, CHARGE_MAX = 1.2;
+  function applyMoves(bus, bits) {
+    const was = bus.btn || 0;
+    bus.btn = bits;
+    const fresh = bits & ~was;
+    if (bus.wrecked > 0 || bus.unplugged) return;
+    if (fresh & MOVE.DASH && (bus.dashCd || 0) <= 0 && (G.phase === 'play' || G.phase === 'count' || G.phase === 'inter')) {
+      bus.dashDir = Math.sign(bus.input) || Math.sign(bus.vx) || bus.lastDir || 1;
+      bus.dashT = DASH_T;
+      bus.dashCd = DASH_CD;
+      feel(bus, 'dash');
+      toPlayer(bus.id, { t: 'mv', k: 'dash', cd: DASH_CD });
+    }
+    if (fresh & MOVE.SHIELD && G.phase === 'play' && bus.shieldWave !== G.wave) {
+      bus.shieldWave = G.wave;
+      bus.shield = Math.max(bus.shield, SHIELD_T);
+      feel(bus, 'shield');
+      toPlayer(bus.id, { t: 'mv', k: 'shield', used: true });
+    }
+    if (was & MOVE.CHARGE && !(bits & MOVE.CHARGE)) releaseCharge(bus);
+  }
+  function releaseCharge(bus) {
+    const c = bus.charge || 0;
+    bus.charge = 0;
+    bus.charged = false;
+    if (c < CHARGE_MIN || G.phase !== 'play' || bus.wrecked > 0) return;
+    const power = Math.min(1, (c - CHARGE_MIN) / (CHARGE_FULL - CHARGE_MIN));
+    G.bolts.push({ x: bus.x - 3, y: GROUND - 54, vy: -780, b: bus, big: true, pierce: 2 + Math.round(power * 2), hitSet: new Set() });
+    bus.st.shots++;
+    bus.flash = 0.15;
+    burst(bus.x, GROUND - 60, COL[bus.color], 14);
+    feel(bus, 'bigshot');
+    toPlayer(bus.id, { t: 'fx', k: 'big' });
   }
   // The room says a stick player is gone (idle, unplugged, removed by the host).
   function freeSlotOf(p) {
@@ -67,6 +316,7 @@
     if (G.slotPid[p.local] === p.id && (p.removed || !G.roster.has(p.id))) {
       G.slotPid[p.local] = null;
       pads.release(p.local);
+      lights.release(p.local);
     }
   }
 
@@ -253,7 +503,7 @@
         for (const p of G.roster.values()) syncBus(p, false);
         G.slotPid.forEach((id, slot) => {
           const p = G.roster.get(id);
-          if (id !== null && (!p || p.removed)) { G.slotPid[slot] = null; pads.release(slot); }
+          if (id !== null && (!p || p.removed)) { G.slotPid[slot] = null; pads.release(slot); lights.release(slot); }
         });
         countMission();
         break;
@@ -307,6 +557,7 @@
       bus.input = (d[i + 2] - 100) / 100;
       bus.lastInput = t;
       bus.benchSent = false;
+      applyMoves(bus, d[i + 3] & (MOVE.DASH | MOVE.SHIELD | MOVE.CHARGE));
     }
   }
 
@@ -412,6 +663,12 @@
     };
     G.buses.set(p.id, bus);
     toast((bus.local !== null ? 'S' + (bus.local + 1) + ' · ' : '') + p.name + ' is driving', p.color);
+    if (bus.local !== null) {
+      // Tell the player their buttons, in their controller's own names.
+      const L = pads.labelsOf(bus.local);
+      toast(L.dash + ' dash · ' + L.shield + ' shield · ' + L.charge + ' charge', p.color);
+      bus.lfx = { name: 'join', t };
+    }
     toPlayer(p.id, { t: 'fx', k: 'spawn' });
   }
 
@@ -446,6 +703,7 @@
       G.charge = 0;
       G.shield = 6;
       G.banner = { text: 'Fleet shield on', t: 1.8, lime: true };
+      feelAll('power');
       toast('Mission Control charged the fleet shield', 'lime');
     }
   }
@@ -463,6 +721,7 @@
   }
 
   function startCount() {
+    G.lastBeat = null;
     G.phase = 'count';
     G.t = T.count;
     if (!G.inv.some(v => v.alive)) newWave();
@@ -491,8 +750,12 @@
       bus.lastInput = t;
       bus.benchSent = false;
       bus.dirty = true;
+      bus.shieldWave = 0;
+      bus.charge = 0;
+      bus.dashCd = 0;
     }
     newWave();
+    feelAll('go');
     $('results').hidden = true;
     sendTick();
   }
@@ -524,6 +787,7 @@
     list.forEach((s, i) => {
       const b = badges.find(x => x.s.id === s.id);
       toPlayer(s.id, { t: 'res', round: G.round, rank: i + 1, of: list.length, score: s.score, badge: b ? b.title : null });
+      feel(G.buses.get(s.id), i === 0 ? 'win' : 'end');
     });
     showResults(list, badges);
     sendTick();
@@ -630,6 +894,9 @@
       if (n > 0) startCount();
     } else if (G.phase === 'count') {
       G.t -= dt;
+      // A beat on every stick for the last 3 seconds of the countdown.
+      const beat = Math.ceil(G.t);
+      if (beat <= 3 && beat >= 1 && beat !== G.lastBeat) { G.lastBeat = beat; feelAll('count'); }
       if (n === 0) { G.phase = 'lobby'; sendTick(); } else if (G.t <= 0) startPlay();
     } else if (G.phase === 'play') {
       G.t -= dt;
@@ -654,6 +921,9 @@
       for (const b of G.buses.values()) if (!b.wrecked) addScore(b, 100);
       G.wave++;
       newWave();
+      feelAll('wave');
+      // Shield bursts come back with each wave.
+      for (const b of G.buses.values()) toPlayer(b.id, { t: 'mv', k: 'ready' });
     }
 
     // enemy fire scales gently with the number of drivers
@@ -670,7 +940,7 @@
         }
       }
       G.droneT -= dt;
-      if (G.droneT <= 0 && !G.drone) { G.drone = { x: -90, y: 128, hp: 2 }; G.droneT = rand(14, 22); }
+      if (G.droneT <= 0 && !G.drone) { G.drone = { x: -90, y: 128, hp: 2 }; G.droneT = rand(14, 22); feelAll('boss'); }
     }
     if (G.drone) { G.drone.x += dt * 230; if (G.drone.x > RIGHT + 100) G.drone = null; }
 
@@ -686,19 +956,37 @@
         if (b.wrecked <= 0) {
           b.wrecked = 0; b.hull = 3; b.shield = 2.5; b.dirty = true;
           toPlayer(b.id, { t: 'fx', k: 'spawn' });
+          feel(b, 'back');
         }
         continue;
       }
-      const input = b.connected ? b.input : 0;
-      b.vx += (input * 560 - b.vx) * Math.min(1, dt * 14);
+      const live = b.connected && !b.unplugged;
+      const input = live ? b.input : 0;
+      if (input) b.lastDir = Math.sign(input);
+      b.dashCd = Math.max(0, (b.dashCd || 0) - dt);
+      if (b.dashT > 0) {
+        // Dash: a short burst sideways.
+        b.dashT -= dt;
+        b.vx = b.dashDir * 1500;
+        if (Math.random() < 0.6) G.parts.push({ x: b.x - b.dashDir * 30, y: GROUND - rand(0, 30), vx: -b.dashDir * rand(40, 120), vy: rand(-20, 20), life: 0.3, max: 0.3, color: COL[b.color], size: 3 });
+      } else b.vx += (input * 560 - b.vx) * Math.min(1, dt * 14);
       b.x = clamp(b.x + b.vx * dt, LEFT, RIGHT);
-      if (playing && b.connected) {
+      // Charge shot: holding charge pauses auto-fire and builds power.
+      if (b.btn & MOVE.CHARGE && playing && live) {
+        b.charge = Math.min(CHARGE_MAX, (b.charge || 0) + dt);
+        if (b.charge >= CHARGE_FULL && !b.charged) { b.charged = true; feel(b, 'charged'); }
+      } else if (b.charge > 0 && !(b.btn & MOVE.CHARGE)) releaseCharge(b);
+      if (playing && live) {
         b.cool -= dt;
-        if (b.cool <= 0) {
+        if (b.cool <= 0 && !(b.charge > 0)) {
           G.bolts.push({ x: b.x - 3, y: GROUND - 50, vy: -840, b });
           b.st.shots++;
           b.cool = 0.5;
+          feel(b, 'fire');
         }
+        // Last hull point: a slow heartbeat.
+        if (b.hull === 1) { b.lowT = (b.lowT || 0) - dt; if (b.lowT <= 0) { b.lowT = 2.4; feel(b, 'low'); } } else b.lowT = 0;
+        if (!b.idleBuzz && t - b.lastInput > IDLE_WARN_MS) { b.idleBuzz = true; feel(b, 'idle'); }
         if (!b.benchSent && t - b.lastInput > IDLE_MS) {
           b.benchSent = true;
           send({ t: 'bench', id: b.id });
@@ -715,9 +1003,9 @@
     // player shots
     for (const p of G.bolts) {
       p.y += p.vy * dt;
-      if (G.drone && Math.abs(p.x - G.drone.x) < 52 && Math.abs(p.y - G.drone.y) < 32) {
+      if (G.drone && Math.abs(p.x - G.drone.x) < (p.big ? 64 : 52) && Math.abs(p.y - G.drone.y) < 32) {
         p.dead = true;
-        G.drone.hp--;
+        G.drone.hp -= p.big ? 2 : 1;
         burst(p.x, p.y, COL[p.b.color], 8);
         if (G.drone.hp <= 0) {
           burst(G.drone.x, G.drone.y, COL[p.b.color], 26);
@@ -725,6 +1013,7 @@
           addScore(p.b, 150);
           p.b.st.hits++;
           toPlayer(p.b.id, { t: 'fx', k: 'kill' });
+          feel(p.b, 'kill');
           G.drone = null;
         }
         continue;
@@ -732,9 +1021,14 @@
       for (const v of G.inv) {
         if (!v.alive) continue;
         const q = invPos(v);
-        if (Math.abs(p.x - q.x) < 36 && Math.abs(p.y - q.y) < 30) {
-          p.dead = true;
-          v.hp--;
+        if (Math.abs(p.x - q.x) < (p.big ? 46 : 36) && Math.abs(p.y - q.y) < 30) {
+          // A charge shot hits harder and goes through several invaders.
+          if (p.big) {
+            if (p.hitSet.has(v)) continue;
+            p.hitSet.add(v);
+            if (--p.pierce <= 0) p.dead = true;
+          } else p.dead = true;
+          v.hp -= p.big ? 2 : 1;
           v.hit = 0.12;
           p.b.st.hits++;
           if (v.hp <= 0) {
@@ -745,6 +1039,7 @@
             addScore(p.b, pts);
             p.b.st.kills++;
             toPlayer(p.b.id, { t: 'fx', k: 'kill' });
+            feel(p.b, 'kill');
           } else burst(p.x, p.y, COL[p.b.color], 5);
           break;
         }
@@ -774,8 +1069,14 @@
             b.st.wrecks++;
             addScore(b, -100);
             burst(b.x, GROUND - 10, COL[b.color], 30);
+            b.charge = 0;
+            b.dashT = 0;
             toPlayer(b.id, { t: 'fx', k: 'wreck' });
-          } else toPlayer(b.id, { t: 'fx', k: 'hit' });
+            feel(b, 'wreck');
+          } else {
+            toPlayer(b.id, { t: 'fx', k: 'hit' });
+            feel(b, 'hit', e.x < b.x ? -1 : 1); // felt on the side the shot came from
+          }
           break;
         }
       }
@@ -875,7 +1176,13 @@
     }
     for (const p of G.bolts) {
       ctx.fillStyle = COL[p.b.color];
-      rr(p.x - 2.5, p.y - 14, 5, 20, 2.5); ctx.fill();
+      if (p.big) {
+        // Charge shot: a wide glowing bolt.
+        ctx.save(); ctx.shadowColor = COL[p.b.color]; ctx.shadowBlur = 22;
+        rr(p.x - 9, p.y - 30, 18, 44, 9); ctx.fill();
+        ctx.fillStyle = '#ffffff'; rr(p.x - 4, p.y - 24, 8, 32, 4); ctx.fill();
+        ctx.restore();
+      } else { rr(p.x - 2.5, p.y - 14, 5, 20, 2.5); ctx.fill(); }
     }
     for (const p of G.parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size); }
     ctx.globalAlpha = 1;
@@ -915,8 +1222,17 @@
       ctx.fillStyle = COL[b.color];
       ctx.beginPath(); ctx.ellipse(b.x, GROUND + 22, 36, 7, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = b.a * blink;
-      const im = b.connected ? BUS[b.color] : GREY;
+      const im = b.connected && !b.unplugged ? BUS[b.color] : GREY;
       if (im) { const w = im.width / 2, h = im.height / 2; ctx.drawImage(im, b.x - w / 2, GROUND - h / 2 - 6, w, h); }
+      if (b.charge > 0) {
+        // Charging: a ring that fills, white once the shot is ready.
+        const k = Math.min(1, b.charge / CHARGE_FULL);
+        ctx.globalAlpha = 1; ctx.lineWidth = 5;
+        ctx.strokeStyle = 'rgba(243,247,236,.18)';
+        ctx.beginPath(); ctx.arc(b.x, GROUND - 6, 56, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = k >= 1 ? '#ffffff' : k >= CHARGE_MIN / CHARGE_FULL ? COL[b.color] : 'rgba(243,247,236,.55)';
+        ctx.beginPath(); ctx.arc(b.x, GROUND - 6, 56, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke();
+      }
       if (b.shield > 0) {
         ctx.strokeStyle = COL[b.color]; ctx.lineWidth = 2.5;
         ctx.globalAlpha = 0.5 + 0.4 * Math.sin(t / 90);
@@ -944,7 +1260,8 @@
       ctx.globalAlpha = 1;
       const idle = now() - b.lastInput;
       let note = null, color = COL[b.color];
-      if (!b.connected) { note = 'RECONNECTING'; color = '#AEB8A6'; }
+      if (b.unplugged) { note = 'PLUG BACK IN'; color = '#FF8A1F'; }
+      else if (!b.connected) { note = 'RECONNECTING'; color = '#AEB8A6'; }
       else if (b.spot > 0) note = 'NEW DRIVER';
       else if (G.phase === 'play' && idle > IDLE_WARN_MS) { note = 'STILL THERE?'; color = '#FF8A1F'; }
       if (note) {
@@ -1080,6 +1397,8 @@
   window.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     const key = e.key.toLowerCase();
+    if (key === 'j') openCheck($('padcheck').hidden);
+    if (key === 'escape' && !$('padcheck').hidden) openCheck(false);
     if (key === 'h' && G.creds) { if ($('hostqr').hidden) showHostQr(); else $('hostqr').hidden = true; }
     if (key === 'f') { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); }
     if (key === 's' && G.creds && G.phase !== 'play' && G.phase !== 'results') startPlay();
@@ -1105,5 +1424,5 @@
   });
 
   // For automated tests.
-  window.FleetScreen = { G, startPlay, endRound, pads, room: () => link };
+  window.FleetScreen = { G, startPlay, endRound, pads, lights, openCheck, room: () => link };
 })();

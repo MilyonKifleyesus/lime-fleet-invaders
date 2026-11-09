@@ -67,6 +67,34 @@ button,input,select{font:inherit;color:inherit}
 .wall span{font:700 1.3cqw/1 var(--display);text-transform:uppercase;letter-spacing:.04em;padding:.55cqw .9cqw;border-radius:99px;background:var(--c);color:var(--ci,#140F00)}
 .wall .mcount{margin-left:auto;background:none;color:var(--mute);font:600 1.25cqw/1 var(--ui);letter-spacing:.04em;text-transform:none;padding:0}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+/* joystick check (J) */
+#padcheck{position:absolute;inset:0;z-index:7;background:rgba(5,8,5,.96);padding:2.4cqw 3cqw;display:grid;grid-template-rows:auto auto 1fr auto;gap:1.2cqw;overflow:auto}
+.pc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:2cqw}
+.pc-head h2{font:800 3.4cqw/1 var(--display);text-transform:uppercase;margin:0}
+.pc-head h2 b{color:var(--lime)}
+.pc-head p{margin:.6cqw 0 0;color:var(--mute);font-size:1.25cqw}
+.pc-acts{display:flex;gap:1cqw}
+.pc-acts .btn{font-size:1.3cqw;padding:1cqw 1.8cqw}
+.pc-note{margin:0;font:600 1.15cqw/1.4 var(--ui);color:var(--hazard);min-height:1.4cqw}
+#pc-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1cqw;align-content:start}
+.pc-pad{display:grid;gap:.8cqw;padding:1.3cqw;border-radius:1.2cqw;background:var(--panel);border:1px solid var(--line-2)}
+.pc-pad.on{border-color:var(--c)}
+.pc-top{display:flex;justify-content:space-between;align-items:center;gap:1cqw}
+.pc-top b{font:800 1.8cqw/1 var(--display);text-transform:uppercase}
+.pc-top span{font:700 .95cqw/1 var(--ui);letter-spacing:.1em;text-transform:uppercase;padding:.45cqw .7cqw;border-radius:99px;border:1px solid var(--line-2);color:var(--mute)}
+.pc-name{font:500 1cqw/1.3 var(--ui);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-axis{height:.9cqw;border-radius:99px;background:var(--panel-2);position:relative;overflow:hidden}
+.pc-axis i{position:absolute;top:0;bottom:0;left:50%;width:.6cqw;margin-left:-.3cqw;border-radius:99px;background:var(--lime)}
+.pc-btns{display:flex;flex-wrap:wrap;gap:.4cqw}
+.pc-btns i{font:700 .85cqw/1 var(--ui);font-style:normal;padding:.4cqw .55cqw;border-radius:.4cqw;background:var(--panel-2);color:var(--faint)}
+.pc-btns i.on{background:var(--lime);color:var(--lime-ink)}
+.pc-row{display:flex;gap:.8cqw;flex-wrap:wrap;align-items:center}
+.pc-row button{font:700 1cqw/1 var(--ui);padding:.7cqw 1cqw;border-radius:99px;border:1px solid var(--line-2);background:transparent;color:var(--ink);cursor:pointer}
+.pc-row em{font:600 1cqw/1.3 var(--ui);font-style:normal;color:var(--mute)}
+.pc-row em.ok{color:var(--lime)}
+.pc-wiz{font:700 1.3cqw/1.3 var(--ui);color:var(--hazard)}
+.pc-empty{grid-column:1/-1;color:var(--mute);font-size:1.4cqw;padding:3cqw 0;text-align:center}
+.pc-foot{margin:0;color:var(--faint);font-size:1cqw}
 </style>
 </head>
 <body>
@@ -106,6 +134,18 @@ button,input,select{font:inherit;color:inherit}
   </div>
 
   <div id="results" hidden></div>
+  <div id="padcheck" hidden role="dialog" aria-labelledby="pc-title">
+    <div class="pc-head">
+      <div><h2 id="pc-title">Joystick <b>check</b></h2><p id="pc-sum">Press any button on each joystick so the browser can see it.</p></div>
+      <div class="pc-acts">
+        <button type="button" class="btn alt" id="pc-lights">Connect lights</button>
+        <button type="button" class="btn" id="pc-close">Done</button>
+      </div>
+    </div>
+    <p class="pc-note" id="pc-note"></p>
+    <div id="pc-list"></div>
+    <p class="pc-foot">J opens and closes this screen. Lights and push-back triggers work on PlayStation 4 and 5 pads in Chrome or Edge, after you approve each one once with Connect lights.</p>
+  </div>
   <div id="conn" hidden>Reconnecting to the relay…</div>
 </div>
 <script src="/live/config.js"></script>
@@ -113,6 +153,7 @@ button,input,select{font:inherit;color:inherit}
 <script src="/live/names.js"></script>
 <script src="/live/room.js"></script>
 <script src="/live/pads.js"></script>
+<script src="/live/lights.js"></script>
 <script src="/live/qrcode.js"></script>
 <script src="/live/screen.js"></script>
 </body>
