@@ -30,7 +30,7 @@ const LOCAL_FLUSH_MS = 16; // about 60 bundles a second to a big screen on this 
 const REMOTE_FLUSH_MS = 25; // a little more bundling when the message goes through Redis
 const RETRY_MS = 1000; // while no big screen is listening, try again every second
 const GIVE_UP_MS = 45_000;
-const QUIET_LIMIT_MS = 25_000; // pages ping every few seconds; silence this long means gone
+const QUIET_LIMIT_MS = 30_000; // pages ping at least every 10 s; silence this long means gone
 const ROOM_CACHE_MS = 30_000;
 const SAVE_EVERY_MS = 2000;
 const KEY_TRIES_PER_MINUTE = 10;
@@ -463,7 +463,7 @@ export function createLiveServer(opts = {}) {
       ev.since = ev.since || now;
       R.waiting.push(ev);
     }
-    // Back off (1, 2, 4, 8 sâ€¦) so a closed room costs only a few Redis messages.
+    // Back off (1, 2, 4, 8 sÃ¢â‚¬Â¦) so a closed room costs only a few Redis messages.
     if (!R.waitTimer) {
       R.waitTries = (R.waitTries || 0) + 1;
       R.waitTimer = setTimeout(() => retryWaiting(R), Math.min(15_000, RETRY_MS * 2 ** (R.waitTries - 1)));
@@ -652,7 +652,7 @@ export function createLiveServer(opts = {}) {
     const now = Date.now();
     for (const c of conns.values()) {
       if (now - c.lastIn > QUIET_LIMIT_MS) {
-        try { c.ws.terminate(); } catch { /* already gone */ }
+        closeWs(c.ws, 4000, 'quiet');
         dropped(c);
       }
     }
