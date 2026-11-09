@@ -1,0 +1,14 @@
+{
+  "name": "fleet-invaders-live-server",
+  "private": true,
+  "type": "module",
+  "description": "The Fleet Invaders Live switchboard: one Vercel Function that passes messages between phones and the big screen.",
+  "scripts": {
+    "dev": "node dev.mjs 8799",
+    "test": "node test/run-all.mjs"
+  },
+  "dependencies": {
+    "ioredis": "5.11.1",
+    "ws": "8.22.0"
+  }
+}

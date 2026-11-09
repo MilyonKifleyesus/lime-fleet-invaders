@@ -1,8 +1,11 @@
-// Relay checks. Run against `wrangler dev` with the test settings in .dev.vars
-// (CODE_MS=8000, MIN_TURN_MS=0), or against the deployed relay with
-// RELAY, EVENT_KEY, ORIGIN and PROD=1, which uses the real timings:
+// Fleet Invaders Live checks: the switchboard plus the big screen's room.
+// Local: start server/dev.mjs with EVENT_KEY_HASH for 'local-test-key',
+// ALLOW_LOCAL=1, CODE_MS=8000 and MIN_TURN_MS=0 (test/run-all.mjs does this).
+// Deployed: SCREEN, EVENT_KEY, ORIGIN and PROD=1, which uses the real timings:
 // codes last 45 seconds and a driver keeps a seat for at least a minute.
-import { BASE, WS_BASE, Client, createRoom, screen, joinPhone, sleep } from './client.mjs';
+import {
+  SCREEN, PHONES, Client, Screen, createRoom, joinPhone, adminUrl, resumeUrl, joinUrl, sleep,
+} from './client.mjs';
 
 const PROD = process.env.PROD === '1';
 const CODE_WAIT = PROD ? 55000 : 15000;
@@ -24,16 +27,17 @@ function assert(cond, msg) {
 
 const open = [];
 const track = c => (open.push(c), c);
-// Real phones ping every few seconds; do the same so quiet test sockets stay open.
 const keepalive = setInterval(() => {
-  for (const c of open) if (c.ws.readyState === 1) c.send('ping');
-}, 20000);
+  for (const c of open) if (c.ws && c.ws.readyState === 1) c.send('ping');
+}, 10000);
 
-console.log('Relay at ' + BASE + (PROD ? ' (real timings)' : ''));
+console.log(`Big screen on ${SCREEN}, phones on ${PHONES}${PROD ? ' (real timings)' : ''}`);
 
 await check('health answers', async () => {
-  const r = await fetch(BASE + '/health');
-  assert(r.ok, 'status ' + r.status);
+  const r = await fetch(SCREEN + '/api/live');
+  const b = await r.json();
+  assert(r.ok && b.ok, 'status ' + r.status);
+  console.log('        bus: ' + b.bus + ', copy ' + b.copy);
 });
 
 await check('a room cannot be created without the event key', async () => {
@@ -42,8 +46,8 @@ await check('a room cannot be created without the event key', async () => {
 });
 
 const made = await createRoom(2);
-const { room, host } = made.body;
-const scr = track(screen(room, host));
+const { room, host } = made.body || {};
+let scr = track(new Screen(room, host, 2));
 let roster;
 
 await check('the event key creates a room with 2 seats', async () => {
@@ -53,17 +57,17 @@ await check('the event key creates a room with 2 seats', async () => {
 
 await check('the big screen connects and gets a join code', async () => {
   roster = await scr.waitFor(m => m.t === 'roster');
+  const code = await scr.waitFor(m => m.t === 'code');
+  roster.code = code.code;
   assert(/^[A-HJ-NP-Z2-9]{4}$/.test(roster.code), 'code ' + roster.code);
   assert(roster.players.length === 0, 'players');
 });
 
-// With real timings a driver keeps the seat for a minute, so that check starts
-// here in its own one-seat room and finishes at the end.
 let turn = null;
 if (PROD) {
   const r = await createRoom(1);
-  const s = track(screen(r.body.room, r.body.host));
-  const code = (await s.waitFor(m => m.t === 'roster')).code;
+  const s = track(new Screen(r.body.room, r.body.host, 1));
+  const code = (await s.waitFor(m => m.t === 'code')).code;
   const first = await joinPhone(code, 'FIRST');
   track(first.c);
   const second = await joinPhone(code, 'SECOND');
@@ -72,13 +76,13 @@ if (PROD) {
 }
 
 await check('a wrong host key is refused', async () => {
-  const bad = track(screen(room, 'x'.repeat(32)));
+  const bad = track(new Client(adminUrl(room, 'x'.repeat(32))));
   const m = await bad.waitFor(x => x.t === 'err');
   assert(m.why === 'key', m.why);
 });
 
 await check('a wrong join code is refused', async () => {
-  const c = track(new Client(`${WS_BASE}/join?code=ZZZZ`));
+  const c = track(new Client(joinUrl('ZZZZ')));
   const m = await c.waitFor(x => x.t === 'err');
   assert(m.why === 'code', m.why);
 });
@@ -130,7 +134,7 @@ await check('steering is capped at 40 messages a second per phone', async () => 
   await sleep(1100);
   scr.bins.length = 0;
   for (let i = 0; i < 120; i++) b.c.send(new Uint8Array([100 + (i % 50), 0, i]));
-  await sleep(600);
+  await sleep(800);
   let n = 0;
   for (const x of scr.bins) n += (x.data.length - 1) / 5;
   assert(n > 0 && n <= 40, 'received ' + n);
@@ -151,7 +155,7 @@ await check('the big screen can message one phone and all phones', async () => {
   for (const p of [a, b, c3]) await p.c.waitFor(x => x.t === 'tick' && x.left === 99);
 });
 
-await check('the app ping gets a pong without waking the room', async () => {
+await check('the app ping gets a pong', async () => {
   a.c.send('ping');
   await a.c.waitFor(x => x.raw === 'pong');
 });
@@ -160,10 +164,23 @@ await check('a dropped phone reconnects to the same seat with its token', async 
   a.c.close();
   const off = await scr.waitFor(m => m.t === 'p' && m.p.id === a.w.id && !m.p.connected);
   assert(off.p.seat === 0, 'seat kept');
-  const again = track(new Client(`${WS_BASE}/room/${room}/ws?role=phone&token=${a.w.token}`));
+  const again = track(new Client(resumeUrl(room, a.w.token)));
   const w = await again.waitFor(m => m.t === 'welcome');
   assert(w.id === a.w.id && w.seat === 0, JSON.stringify(w));
   a.c = again;
+});
+
+await check('a phone that opens a second connection moves over without losing its seat', async () => {
+  const second = track(new Client(resumeUrl(room, a.w.token)));
+  const w = await second.waitFor(m => m.t === 'welcome');
+  assert(w.id === a.w.id && w.seat === 0, JSON.stringify(w));
+  const closed = await a.c.waitClose();
+  assert(closed.code === 4002, 'old connection closed with ' + closed.code);
+  scr.bins.length = 0;
+  second.send(new Uint8Array([60, 0, 9]));
+  const bin = await scr.waitBin(d => d[0] === 1);
+  assert(((bin[1] << 8) | bin[2]) === a.w.id && bin[3] === 60, Array.from(bin).join(','));
+  a.c = second;
 });
 
 await check(PROD ? 'end of round: drivers who just sat down keep their seats' : 'end of round: drivers make room for the line', async () => {
@@ -180,11 +197,10 @@ await check(PROD ? 'end of round: drivers who just sat down keep their seats' : 
   const r = await scr.waitFor(m => m.t === 'roster');
   const seated = r.players.filter(p => p.seat !== null).map(p => p.name).sort();
   assert(seated.length === 2 && seated.includes('ÉMILIE'), seated.join(','));
-  const lined = r.players.filter(p => p.queued);
-  assert(lined.length === 1, 'one driver went to the back of the line');
+  assert(r.players.filter(p => p.queued).length === 1, 'one driver went to the back of the line');
 });
 
-const admin = track(screen(room, host, 'admin'));
+const admin = track(new Client(adminUrl(room, host)));
 await check('the host panel connects with the host key', async () => {
   const r = await admin.waitFor(m => m.t === 'roster');
   assert(r.players.length === 3, 'players ' + r.players.length);
@@ -196,6 +212,7 @@ await check('host can hide a name', async () => {
   assert(n.name === 'DRIVER ' + String(b.w.id).padStart(2, '0'), n.name);
   const p = await scr.waitFor(m => m.t === 'p' && m.p.id === b.w.id && m.p.hidden);
   assert(p.p.name.startsWith('DRIVER'), p.p.name);
+  await admin.waitFor(m => m.t === 'p' && m.p.id === b.w.id && m.p.hidden);
 });
 
 await check('host can lock the room and new phones are refused', async () => {
@@ -212,7 +229,7 @@ await check('host can remove a player, whose token then stops working', async ()
   admin.send({ t: 'kick', id: b.w.id });
   const bye = await b.c.waitFor(m => m.t === 'bye');
   assert(bye.why === 'removed', bye.why);
-  const back = track(new Client(`${WS_BASE}/room/${room}/ws?role=phone&token=${b.w.token}`));
+  const back = track(new Client(resumeUrl(room, b.w.token)));
   const e = await back.waitFor(m => m.t === 'err');
   assert(e.why === 'token', e.why);
 });
@@ -239,35 +256,41 @@ await check('an idle driver is benched and can get back in line', async () => {
   assert(back.seat !== null || back.line >= 1, JSON.stringify(back));
 });
 
+await check('a big screen that reloads picks up the same room and players', async () => {
+  scr.close();
+  await sleep(300);
+  const again = track(new Screen(room, host, 2));
+  const r = await again.waitFor(m => m.t === 'roster');
+  const names = r.players.map(p => p.name).sort().join(',');
+  assert(names.includes('PRIYA') && names.includes('ÉMILIE'), names);
+  again.send({ t: 'to', id: a.w.id, m: { t: 'fx', k: 'hit' } });
+  const fx = await a.c.waitFor(x => x.t === 'fx' && x.k === 'hit');
+  assert(fx, 'phone still reachable');
+  scr = again;
+});
+
 await check('a second big screen replaces the first', async () => {
-  const second = track(screen(room, host));
+  const second = track(new Screen(room, host, 2));
   await second.waitFor(m => m.t === 'roster');
   await scr.waitFor(m => m.t === 'replaced');
-  const closed = await scr.waitClose();
-  assert(closed.code === 4001, 'code ' + closed.code);
+  scr = second;
 });
 
 await check('codes change, the previous code still works, older codes stop', async () => {
-  const s2 = track(screen(room, host));
-  const first = (await s2.waitFor(m => m.t === 'roster')).code;
-  const next = await s2.waitFor(m => m.t === 'code', CODE_WAIT, 'a new code');
+  const first = (await scr.waitFor(m => m.t === 'code', CODE_WAIT, 'a code')).code;
+  const next = await scr.waitFor(m => m.t === 'code', CODE_WAIT, 'a new code');
   assert(next.code !== first, 'code did not change');
   const stillOk = await joinPhone(first, 'PREV CODE');
   track(stillOk.c);
   assert(!stillOk.err, 'previous code refused: ' + JSON.stringify(stillOk.err));
-  await s2.waitFor(m => m.t === 'code' && m.code !== next.code, CODE_WAIT, 'a third code');
+  await scr.waitFor(m => m.t === 'code' && m.code !== next.code, CODE_WAIT, 'a third code');
   const old = await joinPhone(first, 'OLD CODE');
   track(old.c);
   assert(old.err && old.err.why === 'code', 'old code accepted');
 });
 
 await check('a page on another website is refused', async () => {
-  let c;
-  try {
-    c = track(new Client(`${WS_BASE}/join?code=ABCD`, { headers: { Origin: 'https://evil.example' } }));
-  } catch (e) {
-    throw new Error('this Node version cannot set Origin: ' + e.message);
-  }
+  const c = track(new Client(joinUrl('ABCD'), { headers: { Origin: 'https://evil.example' } }));
   const m = await c.waitFor(x => x.t === 'err');
   assert(m.why === 'origin', m.why);
 });
@@ -285,5 +308,5 @@ if (turn) {
 clearInterval(keepalive);
 for (const c of open) c.close();
 const failed = results.filter(r => !r[0]);
-console.log(`\n${results.length - failed.length} of ${results.length} relay checks passed`);
+console.log(`\n${results.length - failed.length} of ${results.length} live checks passed`);
 process.exit(failed.length ? 1 : 0);

@@ -18,7 +18,7 @@
   let seats = 16;
 
   const link = new window.LiveLink({
-    url: () => `${CFG.relayWs}/room/${room}/ws?role=admin&key=${encodeURIComponent(key)}`,
+    url: () => `${CFG.ws}?room=${room}&role=admin&key=${encodeURIComponent(key)}`,
     watch: true,
     onState: s => {
       $('status').textContent = s === 'open' ? 'Connected to the room' : 'Reconnecting…';
@@ -49,7 +49,11 @@
         $('gate').hidden = false;
         $('gate-msg').textContent = m.why === 'key' || m.why === 'room'
           ? 'This host link no longer works. Press H on the big screen to show a new one.'
-          : 'Could not connect to the room.';
+          : m.why === 'noscreen'
+            ? "The big screen isn't running. Open the event on the big screen, then reload this page."
+            : 'Could not connect to the room.';
+      } else if (m.t === 'wait') {
+        $('status').textContent = 'Waiting for the big screen…';
       }
     },
   });

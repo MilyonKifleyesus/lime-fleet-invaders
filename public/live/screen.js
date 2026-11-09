@@ -125,18 +125,20 @@
     err.textContent = '';
     $('setup-go').disabled = true;
     try {
-      const res = await fetch(CFG.relay + '/rooms', {
+      const res = await fetch(CFG.api, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-event-key': key },
         body: JSON.stringify({ seats: Number($('seats').value) }),
       });
       if (res.status === 401) throw new Error("That event key isn't right.");
-      if (!res.ok) throw new Error('The relay refused the request (' + res.status + ').');
+      if (res.status === 503) throw new Error("The live server isn't set up yet: it needs its Redis store.");
+      if (res.status === 429) throw new Error('Too many tries. Wait a minute, then try again.');
+      if (!res.ok) throw new Error('The live server refused the request (' + res.status + ').');
       const creds = await res.json();
       saveCreds(creds);
       startEvent(creds, true);
     } catch (ex) {
-      err.textContent = ex instanceof TypeError ? "Can't reach the relay. Check this computer's internet connection." : ex.message;
+      err.textContent = ex instanceof TypeError ? "Can't reach the live server. Check this computer's internet connection." : ex.message;
     } finally {
       $('setup-go').disabled = false;
     }
@@ -182,13 +184,15 @@
   }
   $('hostqr-close').addEventListener('click', () => { $('hostqr').hidden = true; });
 
-  // ------------------------------------------------------------ relay
+  // ------------------------------------------------------------ room
 
+  // The room (players, seats, line, codes) runs in this page; see room.js.
   function connect() {
     if (link) link.stop();
-    link = new window.LiveLink({
-      url: () => `${CFG.relayWs}/room/${G.creds.room}/ws?role=screen&key=${G.creds.host}`,
-      watch: true,
+    link = new window.LiveRoom({
+      url: () => `${CFG.ws}?room=${G.creds.room}&role=screen&key=${G.creds.host}`,
+      room: G.creds.room,
+      seats: G.creds.seats,
       onMessage,
       onBinary,
       onState: s => { $('conn').hidden = s === 'open' || s === 'stopped'; },

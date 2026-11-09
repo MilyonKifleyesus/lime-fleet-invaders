@@ -116,8 +116,8 @@
   }
 
   function linkUrl() {
-    if (S.token) return CFG.relayWs + '/room/' + S.room + '/ws?role=phone&token=' + encodeURIComponent(S.token);
-    return CFG.relayWs + '/join?code=' + encodeURIComponent(S.code);
+    if (S.token) return CFG.ws + '?room=' + S.room + '&role=phone&token=' + encodeURIComponent(S.token);
+    return CFG.ws + '?code=' + encodeURIComponent(S.code);
   }
 
   function open() {
@@ -160,6 +160,9 @@
       case 'seat':
         S.seat = m.seat; S.line = m.line;
         route(m.why);
+        return;
+      case 'wait':
+        if (!S.joined) connecting('Waiting for the big screen…');
         return;
       case 'tick': return onTick(m);
       case 'me':
@@ -207,7 +210,14 @@
       show('s-join');
       return;
     }
-    if (why === 'token' || why === 'ended') {
+    if (why === 'noscreen' && S.token && (S.offline = (S.offline || 0) + 1) <= 20) {
+      // The big screen is reloading or asleep: keep the seat and try again.
+      if (link) { link.stop(); link = null; }
+      connecting('The big screen is offline. Trying again…');
+      setTimeout(function () { if (current === 's-connect') open(); }, 15000);
+      return;
+    }
+    if (why === 'token' || why === 'ended' || why === 'room' || why === 'noscreen') {
       forget();
       S.token = null;
       S.joined = false;
@@ -234,6 +244,7 @@
   function onWelcome(m) {
     S.joined = true;
     S.joining = false;
+    S.offline = 0;
     S.id = m.id; S.token = m.token; S.room = m.room;
     S.name = m.name; S.color = m.color; S.seat = m.seat; S.line = m.line;
     save();
