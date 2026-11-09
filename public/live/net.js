@@ -82,6 +82,14 @@
         if (ws === this.ws) this.scheduleHandover(m.ms);
         return;
       }
+      if (m.t === 'end') {
+        // The switchboard closed this connection (Vercel does not pass the
+        // close itself on), so close it here and carry on as after a close.
+        ws.onmessage = ws.onclose = null;
+        try { ws.close(); } catch (err) { /* ignore */ }
+        this.onSocketClose(ws, { code: m.code, reason: m.why || '' });
+        return;
+      }
     }
     if (ws === this.next) {
       if (!m || m.t === 'wait') return;

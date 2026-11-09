@@ -68,9 +68,11 @@ export function hashEventKey(key) {
   });
 }
 
-// Vercel does not pass a close started here on to the page, so close
-// politely and then cut the connection a moment later.
+// Vercel does not pass a close started here on to the page, so first say
+// so in a message ({t:'end'}), which makes the page close its side, then
+// close and cut the connection a moment later.
 function closeWs(ws, code, why) {
+  try { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'end', code, why })); } catch { /* closing */ }
   try { ws.close(code, why); } catch { /* already closed */ }
   const t = setTimeout(() => { try { ws.terminate(); } catch { /* gone */ } }, 1000);
   if (t.unref) t.unref();
