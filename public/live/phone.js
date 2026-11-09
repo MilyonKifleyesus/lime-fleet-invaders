@@ -59,8 +59,15 @@
     $('connect-msg').textContent = msg || 'Connecting to the big screen…';
     $('slow').textContent = hint || SLOW_NET;
     $('slow').hidden = true;
+    $('new-code').hidden = true;
     clearTimeout(slowTimer);
-    slowTimer = setTimeout(function () { if (current === 's-connect') $('slow').hidden = false; }, 4500);
+    slowTimer = setTimeout(function () {
+      if (current !== 's-connect') return;
+      $('slow').hidden = false;
+      // The big screen isn't answering: this may be an old link or an event
+      // that has ended. Let the player type the code on the big screen now.
+      $('new-code').hidden = hint !== SLOW_SCREEN;
+    }, 4500);
   }
 
   function showCode(msg) {
@@ -167,7 +174,20 @@
         route(m.why);
         return;
       case 'wait':
-        if (!S.joined) connecting('Waiting for the big screen…', SLOW_SCREEN);
+        if (!S.joined) {
+          // Getting a seat back in an event whose big screen isn't answering,
+          // while this page was opened with a join code: that code is likely
+          // a newer event (a freshly scanned QR), so join with it instead.
+          var c = codeFromUrl();
+          if (S.token && c && !S.triedCode) {
+            forget();
+            S.token = null;
+            if (link) { link.stop(); link = null; }
+            startCode(c);
+            return;
+          }
+          connecting('Waiting for the big screen…', SLOW_SCREEN);
+        }
         return;
       case 'tick': return onTick(m);
       case 'me':
@@ -353,6 +373,14 @@
     startCode(c);
   }
   $('code-go').addEventListener('click', submitCode);
+  $('new-code').addEventListener('click', function () {
+    // Give up on the old event and join whatever is on the big screen now.
+    forget();
+    S.token = null;
+    S.joined = false;
+    S.offline = 0;
+    showCode('Type the code shown on the big screen now.');
+  });
   codeIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitCode(); });
   $('bye-again').addEventListener('click', function () { showCode(''); });
 
