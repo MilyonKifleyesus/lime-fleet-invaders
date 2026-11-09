@@ -31,6 +31,7 @@
         for (const p of m.players) players.set(p.id, p);
         $('code').textContent = m.code || '----';
         $('lock').setAttribute('aria-pressed', String(!!m.locked));
+        $('pads').setAttribute('aria-pressed', String(m.pads !== false));
         render();
       } else if (m.t === 'p') {
         players.set(m.p.id, m.p);
@@ -39,6 +40,8 @@
         $('code').textContent = m.code;
       } else if (m.t === 'lock') {
         $('lock').setAttribute('aria-pressed', String(!!m.on));
+      } else if (m.t === 'pads') {
+        $('pads').setAttribute('aria-pressed', String(!!m.on));
       } else if (m.t === 'tick') {
         const label = { lobby: 'Waiting', count: 'Starting', play: 'Round ' + m.round, results: 'Results', inter: 'Next round' }[m.phase] || 'Round';
         $('n-phase').textContent = label;
@@ -65,10 +68,12 @@
     const dot = document.createElement('i');
     const nm = document.createElement('div');
     nm.className = 'nm';
+    const stick = p.local !== null && p.local !== undefined;
     const b = document.createElement('b');
     b.textContent = p.name;
     const s = document.createElement('span');
-    s.textContent = status + (p.custom ? ' · typed name' : '') + (p.share ? ' · OK to post' : '');
+    s.textContent = (stick ? 'Joystick ' + (p.local + 1) + ' · ' : '') + status
+      + (p.custom ? ' · typed name' : '') + (p.share ? ' · OK to post' : '');
     nm.append(b, s);
     const hide = document.createElement('button');
     hide.type = 'button';
@@ -76,7 +81,8 @@
     hide.addEventListener('click', () => link.send({ t: 'hide', id: p.id, on: !p.hidden }));
     const kick = document.createElement('button');
     kick.type = 'button';
-    kick.textContent = 'Remove';
+    const word = stick ? 'Free stick' : 'Remove';
+    kick.textContent = word;
     kick.addEventListener('click', () => {
       if (kick.classList.contains('armed')) {
         link.send({ t: 'kick', id: p.id });
@@ -84,9 +90,11 @@
       }
       kick.classList.add('armed');
       kick.textContent = 'Sure?';
-      setTimeout(() => { kick.classList.remove('armed'); kick.textContent = 'Remove'; }, 3000);
+      setTimeout(() => { kick.classList.remove('armed'); kick.textContent = word; }, 3000);
     });
-    li.append(dot, nm, hide, kick);
+    // Stick players have generated names, so there is nothing to hide.
+    if (stick) li.append(dot, nm, kick);
+    else li.append(dot, nm, hide, kick);
     return li;
   }
 
@@ -119,6 +127,10 @@
   $('lock').addEventListener('click', () => {
     const on = $('lock').getAttribute('aria-pressed') !== 'true';
     link.send({ t: 'lock', on });
+  });
+  $('pads').addEventListener('click', () => {
+    const on = $('pads').getAttribute('aria-pressed') !== 'true';
+    link.send({ t: 'pads', on });
   });
   $('start').addEventListener('click', () => link.send({ t: 'cmd', c: 'start' }));
   $('end').addEventListener('click', () => link.send({ t: 'cmd', c: 'end' }));

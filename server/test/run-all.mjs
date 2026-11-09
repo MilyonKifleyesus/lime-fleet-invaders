@@ -26,10 +26,10 @@ function start(port, extra = {}) {
   });
 }
 
-function run(label, env) {
+function run(label, env, file = 'live.test.mjs') {
   console.log('\n=== ' + label);
   return new Promise(resolve => {
-    const child = spawn(process.execPath, [path.resolve(here, 'live.test.mjs')], {
+    const child = spawn(process.execPath, [path.resolve(here, file)], {
       env: { ...process.env, ...env }, stdio: 'inherit',
     });
     child.on('exit', code => resolve(code));
@@ -38,6 +38,7 @@ function run(label, env) {
 
 let failed = 0;
 try {
+  failed += await run('joystick reading', {}, 'pads.test.mjs');
   await startMiniRedis(6390);
   const REDIS_URL = 'redis://127.0.0.1:6390';
   await Promise.all([start(8811), start(8812, { REDIS_URL }), start(8813, { REDIS_URL })]);
@@ -45,6 +46,10 @@ try {
   failed += await run('two copies through Redis: big screen on one, phones on the other', {
     SCREEN: 'http://127.0.0.1:8812', PHONES: 'http://127.0.0.1:8813',
   });
+  failed += await run('joysticks with phones, one copy', { SCREEN: 'http://127.0.0.1:8811' }, 'joystick.test.mjs');
+  failed += await run('joysticks with phones, two copies through Redis', {
+    SCREEN: 'http://127.0.0.1:8812', PHONES: 'http://127.0.0.1:8813',
+  }, 'joystick.test.mjs');
 } finally {
   for (const c of children) c.kill();
 }

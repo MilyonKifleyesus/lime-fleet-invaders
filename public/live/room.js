@@ -33,6 +33,10 @@
     return out;
   }
 
+  function isLocal(p) {
+    return p.local !== undefined && p.local !== null;
+  }
+
   function store() {
     try { return root.localStorage || null; } catch (e) { return null; }
   }
@@ -60,6 +64,7 @@
     this.codeTimer = null;
     this.stopped = false;
     this.ready = false;
+    this.padCount = 0; // joysticks plugged into this computer
     this.load();
     var self = this;
     this.checkTimer = setInterval(function () { self.checkHolds(); }, CHECK_MS);
@@ -106,6 +111,15 @@
       this.players.set(p.id, p);
       if (p.token && !p.removed) this.byToken.set(p.token, p.id);
     }
+    // Joystick players belong to the computer they were plugged into. After a
+    // reload, or on another computer, they press a button to join again.
+    this.players.forEach(function (p) {
+      if (p.local !== undefined && p.local !== null && !p.removed) {
+        p.removed = true;
+        p.seat = null;
+        p.queuedAt = null;
+      }
+    });
     // Phones stay connected to the switchboard while the big screen reloads,
     // so their connection ids still work.
     this.cids = new Map(s.cids || []);
@@ -150,7 +164,7 @@
     return {
       id: p.id, name: this.display(p), color: p.color, seat: p.seat, queued: p.queuedAt !== null,
       connected: p.connected, hidden: p.hidden, custom: p.custom, share: p.share, rounds: p.rounds,
-      joinedAt: p.joinedAt, removed: p.removed,
+      joinedAt: p.joinedAt, removed: p.removed, local: isLocal(p) ? p.local : null,
     };
   };
 
@@ -172,9 +186,20 @@
     return this.line().indexOf(p) + 1;
   };
 
-  Room.prototype.freeSeat = function () {
+  // A free seat, or null. Each joystick that is plugged in and not yet driving
+  // keeps one seat free for itself, so phones never take the last seats.
+  Room.prototype.freeSeat = function (forStick) {
     var taken = new Set();
-    this.active().forEach(function (p) { if (p.seat !== null) taken.add(p.seat); });
+    var sticksDriving = 0;
+    this.active().forEach(function (p) {
+      if (p.seat === null) return;
+      taken.add(p.seat);
+      if (isLocal(p)) sticksDriving++;
+    });
+    if (!forStick) {
+      var reserved = this.meta.padsOff ? 0 : Math.max(0, this.padCount - sticksDriving);
+      if (taken.size >= this.meta.seats - reserved) return null;
+    }
     for (var i = 0; i < this.meta.seats; i++) if (!taken.has(i)) return i;
     return null;
   };
@@ -208,7 +233,7 @@
     var self = this;
     return {
       t: 'roster', room: this.meta.room, seats: this.meta.seats, locked: this.meta.locked,
-      code: this.meta.code, ends: this.meta.codeEnds, players: this.active().map(function (p) { return self.pub(p); }),
+      pads: !this.meta.padsOff, code: this.meta.code, ends: this.meta.codeEnds, players: this.active().map(function (p) { return self.pub(p); }),
     };
   };
 
@@ -301,8 +326,8 @@
     for (var i = 0; i < line.length; i++) {
       var p = line[i];
       if (!p.connected) continue;
-      var seat = this.freeSeat();
-      if (seat === null) break;
+      var seat = this.freeSeat(isLocal(p));
+      if (seat === null) continue; // a phone may wait while a stick still fits
       p.seat = seat;
       p.seatedAt = Date.now();
       p.queuedAt = null;
@@ -597,7 +622,72 @@
       this.toHosts({ t: 'lock', on: this.meta.locked });
     } else if (m.t === 'cmd' && (m.c === 'start' || m.c === 'end')) {
       this.toScreen({ t: 'cmd', c: m.c });
+    } else if (m.t === 'pads') {
+      // Joysticks on or off. Off sends every stick player away, for a phones-only round.
+      this.meta.padsOff = !m.on;
+      if (this.meta.padsOff) {
+        var self = this;
+        this.active().filter(isLocal).forEach(function (s) { self.removeLocal(s.id, true); });
+      }
+      this.changed();
+      this.toHosts({ t: 'pads', on: !this.meta.padsOff });
+      this.seatFromLine();
     }
+  };
+
+  // ---------------------------------------------------------------- joysticks
+
+  // How many joysticks are plugged in; each one keeps a seat free for itself.
+  Room.prototype.setPads = function (n) {
+    n = Math.max(0, Math.min(8, Number(n) || 0));
+    if (n === this.padCount) return;
+    this.padCount = n;
+    if (this.ready) this.seatFromLine();
+  };
+
+  // Someone pressed a button on joystick slot 0-7. Returns the new player's id,
+  // or null when joysticks are off or the room is full.
+  Room.prototype.addLocal = function (slot) {
+    if (this.stopped || !this.meta || this.meta.padsOff) return null;
+    slot = Number(slot);
+    if (!(slot >= 0 && slot < 8)) return null;
+    if (this.active().length >= MAX_PLAYERS) return null;
+    var busy = this.active().some(function (p) { return p.local === slot; });
+    if (busy) return null;
+    var now = Date.now();
+    var color = Names.COLORS[slot % Names.COLORS.length];
+    var id = this.meta.nextId++;
+    var p = {
+      id: id, token: null, name: this.uniqueName(Names.suggestName(color)), custom: false, share: false,
+      color: color, seat: null, seatedAt: null, queuedAt: null, hidden: false, removed: false,
+      joinedAt: now, lastSeen: now, connected: true, rounds: 0, local: slot,
+    };
+    var seat = this.freeSeat(true);
+    if (seat !== null) {
+      p.seat = seat;
+      p.seatedAt = now;
+    } else {
+      p.queuedAt = 1 + slot; // a full room: sticks go to the front of the line
+    }
+    this.players.set(id, p);
+    this.changed();
+    this.toHosts({ t: 'p', p: this.pub(p), join: true });
+    return id;
+  };
+
+  // A stick player is gone: put down for too long, unplugged, or sent away by
+  // the host. The next press on that stick is a new player.
+  Room.prototype.removeLocal = function (id, quiet) {
+    var p = this.players.get(Number(id));
+    if (!p || p.removed || !isLocal(p)) return false;
+    p.removed = true;
+    p.seat = null;
+    p.queuedAt = null;
+    p.connected = false;
+    this.changed();
+    this.toHosts({ t: 'p', p: this.pub(p) });
+    if (!quiet) this.seatFromLine();
+    return true;
   };
 
   // Free seats and places in line held by phones that never came back.
@@ -638,7 +728,9 @@
     } else if (m.t === 'bench') {
       // A driver who stopped steering gives up the seat.
       var p = this.players.get(Number(m.id));
-      if (p && p.seat !== null) {
+      if (p && isLocal(p)) {
+        this.removeLocal(p.id);
+      } else if (p && p.seat !== null) {
         p.seat = null;
         p.queuedAt = null;
         this.changed();
@@ -660,18 +752,17 @@
     drivers.forEach(function (d) { d.rounds++; });
     var line = this.line().filter(function (p) { return p.connected || now - p.lastSeen < HOLD_MS; });
     var changed = new Set(drivers);
-    var free = this.meta.seats - drivers.length;
     // A driver who sat down in the last minute of a round keeps the seat.
+    // Stick players keep theirs until they put the stick down.
     var leaving = drivers
-      .filter(function (d) { return now - (d.seatedAt || 0) > self.minTurnMs; })
+      .filter(function (d) { return !isLocal(d) && now - (d.seatedAt || 0) > self.minTurnMs; })
       .sort(function (a, b) { return (a.seatedAt || 0) - (b.seatedAt || 0); });
     var next = 0;
     for (var i = 0; i < line.length; i++) {
       var p = line[i];
-      var seat = null;
-      if (free > 0) {
-        seat = this.freeSeat();
-        free--;
+      var seat = this.freeSeat(isLocal(p));
+      if (seat !== null) {
+        // a free seat
       } else if (next < leaving.length) {
         var out = leaving[next++];
         seat = out.seat;
