@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050705">
+<meta name="robots" content="noindex">
+<title>Fleet Invaders Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=Doto:wght@900&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#050705; --panel:#0D120C; --panel-2:#161D14; --ink:#F3F7EC; --mute:#AEB8A6; --faint:#859079;
+  --line:rgba(243,247,236,.11); --line-2:rgba(243,247,236,.22);
+  --lime:#B8FF38; --lime-ink:#0B1400; --hazard:#FF8A1F; --bad:#FF7A6E;
+  --pc:#E69F00; --pci:#1A1200;
+  --display:"Barlow Condensed","Arial Narrow","Segoe UI",system-ui,sans-serif;
+  --ui:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+  --led:"Doto","Courier New",ui-monospace,monospace;
+  --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px);
+  --sl:max(20px,env(safe-area-inset-left,0px)); --sr:max(20px,env(safe-area-inset-right,0px));
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 var(--ui);overflow:hidden;overscroll-behavior:none;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+#app{position:fixed;inset:0;overflow:hidden}
+.scr{position:absolute;inset:0;display:flex;flex-direction:column;padding:calc(var(--st) + 22px) var(--sr) calc(var(--sb) + 22px) var(--sl);overflow-y:auto}
+.led{font-family:var(--led);font-weight:900;font-variant-numeric:tabular-nums}
+.eyebrow{font:700 12px/1.2 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--lime)}
+h1,h2{font-family:var(--display);text-transform:uppercase;margin:0;font-weight:800;letter-spacing:.005em;text-wrap:balance}
+p{margin:0}
+.mark{width:46px;height:39px;background:var(--lime);-webkit-mask:url(/sprites/bus_gunner.png) center/contain no-repeat;mask:url(/sprites/bus_gunner.png) center/contain no-repeat}
+.btn{display:block;width:100%;text-align:center;font:800 26px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;padding:18px 20px;border-radius:999px;background:var(--lime);color:var(--lime-ink)}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.5}
+.ghost{display:block;width:100%;text-align:center;font:600 15px/1 var(--ui);padding:14px 16px;border-radius:14px;border:1px solid var(--line-2)}
+.link{font:600 14px/1.3 var(--ui);color:var(--mute);text-decoration:underline;text-underline-offset:3px;padding:10px 0}
+.err{color:var(--bad);font:600 14px/1.35 var(--ui);min-height:19px}
+
+/* connecting */
+#s-connect{align-items:center;justify-content:center;text-align:center;gap:18px}
+#s-connect h1{font-size:30px;letter-spacing:.06em}
+#s-connect h1 b{color:var(--lime)}
+.spin{width:26px;height:26px;border-radius:50%;border:3px solid var(--line-2);border-top-color:var(--lime);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#slow{max-width:30ch;color:var(--mute);font-size:15px}
+
+/* code entry */
+#s-code{gap:16px;justify-content:center}
+#s-code h1{font-size:44px;line-height:.92}
+#code-in{width:100%;font:900 56px/1 var(--led);letter-spacing:.3em;text-align:center;text-transform:uppercase;padding:18px 0 18px .3em;border-radius:18px;border:2px solid var(--line-2);background:var(--panel);color:var(--ink);-webkit-user-select:text;user-select:text}
+#code-in:focus{border-color:var(--lime);outline:none}
+
+/* join */
+#s-join{gap:12px}
+.j-top{display:flex;justify-content:space-between;align-items:center;font:600 13px/1 var(--ui);color:var(--mute)}
+.j-top .led{color:var(--lime);font-size:17px;margin-left:6px}
+.ava{display:grid;place-items:center;height:min(30vh,170px);margin-top:4px;border-radius:24px;background:radial-gradient(60% 70% at 50% 62%,color-mix(in srgb,var(--pc) 32%,transparent),transparent 72%)}
+.ava img{width:min(62%,220px);height:auto;filter:drop-shadow(0 12px 16px rgba(0,0,0,.55))}
+#j-name{font:800 clamp(36px,11vw,52px)/.95 var(--display);text-transform:uppercase;text-align:center;word-break:break-word}
+.j-col{display:flex;justify-content:center;align-items:center;gap:8px;font:600 14px/1 var(--ui);color:var(--mute)}
+.j-col i{width:13px;height:13px;border-radius:50%;background:var(--pc)}
+.j-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.j-acts button{font:600 14px/1.2 var(--ui);padding:14px 12px;border-radius:14px;border:1px solid var(--line-2)}
+.j-acts button:disabled{opacity:.4}
+.own{display:flex;gap:8px}
+.own input{flex:1;min-width:0;font:700 22px/1 var(--display);text-transform:uppercase;letter-spacing:.03em;padding:14px 14px;border-radius:14px;border:2px solid var(--line-2);background:var(--panel);color:var(--ink);-webkit-user-select:text;user-select:text}
+.own input:focus{border-color:var(--lime);outline:none}
+.own button{padding:0 18px;border-radius:14px;background:var(--panel-2);border:1px solid var(--line-2);font:700 15px/1 var(--ui)}
+.j-play{margin-top:auto;display:grid;gap:14px;padding-top:6px}
+.opt{display:flex;gap:12px;align-items:flex-start;font:500 14px/1.35 var(--ui)}
+.opt input{flex:none;width:22px;height:22px;margin:0;accent-color:var(--lime)}
+.fine{font:400 12.5px/1.45 var(--ui);color:var(--faint)}
+.tip{font:600 13px/1.35 var(--ui);color:var(--lime-ink);background:var(--lime);padding:10px 12px;border-radius:12px}
+
+/* controller */
+#s-drive{--phi:color-mix(in srgb,var(--pc) 78%,#fff);color:var(--pci);gap:14px;
+  background:radial-gradient(130% 70% at 50% -5%,var(--phi) 0%,var(--pc) 42%,color-mix(in srgb,var(--pc) 80%,#000) 100%)}
+#s-drive.light-ink{--phi:color-mix(in srgb,var(--pc) 70%,#000)}
+#s-drive::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;z-index:6}
+#s-drive.kill::after{background:#fff;animation:flash .28s ease-out}
+#s-drive.hit::after{box-shadow:inset 0 0 90px rgba(70,0,0,.9);animation:flash .45s ease-out}
+@keyframes flash{from{opacity:.75}to{opacity:0}}
+.c-row{display:flex;justify-content:space-between;align-items:center;font:600 13px/1.2 var(--ui)}
+.dot{display:inline-flex;align-items:center;gap:7px}
+.dot::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--pci);box-shadow:0 0 0 4px color-mix(in srgb,var(--pci) 18%,transparent)}
+.dot.off::before{background:transparent;border:2px solid var(--pci)}
+#d-name{font:800 clamp(40px,12.5vw,58px)/.9 var(--display);text-transform:uppercase;word-break:break-word}
+.c-sub{font:600 14px/1.2 var(--ui);opacity:.9;margin-top:6px}
+.c-stats{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;padding-top:14px;border-top:1.5px solid color-mix(in srgb,var(--pci) 22%,transparent)}
+.c-lbl{display:block;font:700 11px/1 var(--ui);letter-spacing:.12em;text-transform:uppercase;opacity:.85;margin-bottom:8px}
+#d-score{font-size:34px;line-height:1}
+.hull{display:flex;gap:7px}
+.hull span{width:36px;height:31px;background:var(--pci);-webkit-mask:url(/sprites/bus_gunner.png) center/contain no-repeat;mask:url(/sprites/bus_gunner.png) center/contain no-repeat;transition:opacity .2s}
+.hull span.off{opacity:.2}
+.strip{position:relative;flex:1;min-height:150px;border-radius:32px;background:color-mix(in srgb,var(--pci) 13%,transparent);box-shadow:inset 0 2px 8px color-mix(in srgb,var(--pci) 25%,transparent);touch-action:none;overflow:hidden;margin:4px 0}
+.strip .rail{position:absolute;left:34px;right:34px;top:50%;height:3px;border-radius:3px;background:color-mix(in srgb,var(--pci) 22%,transparent);transform:translateY(-50%)}
+.strip .anchor{position:absolute;top:50%;left:var(--ax,50%);width:116px;height:116px;margin:-58px 0 0 -58px;border-radius:50%;border:2px dashed color-mix(in srgb,var(--pci) 40%,transparent);opacity:0;transition:opacity .15s}
+.strip.on .anchor{opacity:1}
+.strip .knob{position:absolute;top:50%;left:var(--kx,50%);width:84px;height:84px;margin:-42px 0 0 -42px;border-radius:50%;background:var(--pci);box-shadow:0 8px 20px color-mix(in srgb,var(--pci) 45%,transparent);display:grid;place-items:center}
+.strip .knob::before{content:"";width:36px;height:18px;background:var(--pc);clip-path:polygon(0 50%,34% 0,34% 100%,0 50%,100% 50%,66% 0,66% 100%,100% 50%)}
+.strip .hint{position:absolute;left:0;right:0;bottom:16px;text-align:center;font:700 12px/1 var(--ui);letter-spacing:.14em;text-transform:uppercase;opacity:.85;pointer-events:none}
+.chip{display:inline-flex;align-items:center;gap:6px;font:700 12px/1 var(--ui);letter-spacing:.08em;text-transform:uppercase;padding:9px 13px;border-radius:99px;background:color-mix(in srgb,var(--pci) 12%,transparent)}
+.cover{position:absolute;inset:0;z-index:5;display:grid;place-content:center;text-align:center;gap:10px;padding:24px;background:color-mix(in srgb,var(--pci) 86%,transparent);color:var(--pc)}
+.cover b{font:900 120px/1 var(--led)}
+.cover h2{font-size:44px;line-height:.92}
+.cover span{font:700 16px/1.35 var(--ui)}
+/* Between rounds the top of the phone says what's happening, and the strip
+   stays usable so drivers can find their bus before it starts. */
+#d-wait{bottom:auto;place-content:start center;padding:calc(var(--st) + 26px) 20px 30px;border-radius:0 0 28px 28px;pointer-events:none}
+.banner{position:absolute;left:var(--sl);right:var(--sr);top:calc(var(--st) + 10px);z-index:7;padding:10px 14px;border-radius:12px;background:var(--pci);color:var(--pc);font:700 14px/1.2 var(--ui);text-align:center}
+
+/* mission control */
+#s-line{gap:14px;background:radial-gradient(100% 55% at 50% 35%,#13200E,var(--panel) 70%)}
+#s-line h1{font-size:40px;line-height:.9;color:var(--lime)}
+#l-status{font:600 16px/1.35 var(--ui);color:var(--mute)}
+#l-status b{color:var(--ink)}
+.tap{--p:0;position:relative;align-self:center;width:min(70vw,270px);aspect-ratio:1;border-radius:50%;margin:6px 0;
+  background:conic-gradient(var(--lime) calc(var(--p)*1%),rgba(184,255,56,.12) 0);display:grid;place-items:center;touch-action:manipulation}
+.tap.bump{animation:bump .12s}
+@keyframes bump{50%{transform:scale(.96)}}
+.tap span{position:absolute;inset:12px;border-radius:50%;background:radial-gradient(circle at 50% 35%,#1E2D16,#0B1009);color:var(--ink);display:grid;gap:6px;place-content:center;justify-items:center}
+.tap b{font:800 54px/1 var(--display);letter-spacing:.04em}
+.tap small{font:600 13px/1.25 var(--ui);color:var(--mute);max-width:150px;text-align:center}
+.tap em{font:900 26px/1 var(--led);font-style:normal;color:var(--lime)}
+.l-info{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.l-info div{padding:12px 14px;border-radius:14px;background:var(--panel-2);border:1px solid var(--line)}
+.l-info span{display:block;font:700 11px/1 var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+.l-info .led{font-size:24px}
+.foot{margin-top:auto;display:flex;justify-content:center}
+
+/* bench, bye */
+#s-bench,#s-bye{justify-content:center;gap:16px}
+#s-bench h1,#s-bye h1{font-size:46px;line-height:.92}
+#s-bench p,#s-bye p{color:var(--mute);max-width:34ch}
+
+/* results card */
+#card{position:absolute;left:var(--sl);right:var(--sr);bottom:calc(var(--sb) + 18px);z-index:20;padding:18px 18px 16px;border-radius:20px;background:var(--panel);border:1px solid var(--line-2);box-shadow:0 20px 50px rgba(0,0,0,.6);color:var(--ink);display:grid;gap:6px;animation:rise .35s ease-out}
+@keyframes rise{from{transform:translateY(30px);opacity:0}}
+#card .eyebrow{color:var(--mute)}
+#card h2{font-size:34px;line-height:.95}
+#card p{color:var(--mute);font-size:15px}
+#card .badge{justify-self:start;font:700 12px/1 var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--lime-ink);background:var(--lime);padding:7px 10px;border-radius:8px;margin-top:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <section class="scr" id="s-connect" aria-live="polite">
+    <span class="mark" aria-hidden="true"></span>
+    <h1>Fleet Invaders <b>Live</b></h1>
+    <div class="spin" aria-hidden="true"></div>
+    <p id="connect-msg">Connecting to the big screen…</p>
+    <p id="slow" hidden>Still trying. If you're on the venue Wi-Fi, turn Wi-Fi off to use mobile data.</p>
+  </section>
+
+  <section class="scr" id="s-code" hidden>
+    <h1>Enter the code from the big screen</h1>
+    <p style="color:var(--mute)">It's the four characters under the QR code.</p>
+    <input id="code-in" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" aria-label="Join code">
+    <p class="err" id="code-err" role="alert"></p>
+    <button class="btn" id="code-go" type="button">Join</button>
+  </section>
+
+  <section class="scr" id="s-join" hidden>
+    <div class="j-top"><span>Room <span class="led" id="j-code">----</span></span><span id="j-state"></span></div>
+    <div class="ava"><img id="j-ava" src="/sprites/bus_gunner.png" alt=""></div>
+    <div id="j-name">—</div>
+    <div class="j-col"><i></i><span id="j-col">Your colour</span></div>
+    <div class="j-acts">
+      <button type="button" id="j-reroll">New name</button>
+      <button type="button" id="j-own">Type my own</button>
+    </div>
+    <div class="own" id="j-own-row" hidden>
+      <input id="j-own-in" maxlength="16" autocomplete="nickname" autocapitalize="characters" spellcheck="false" aria-label="Your name" placeholder="Your name">
+      <button type="button" id="j-own-ok">Use</button>
+    </div>
+    <p class="err" id="j-err" role="alert"></p>
+    <p class="tip" id="j-tip" hidden>For the smoothest game, open this page in Safari or Chrome.</p>
+    <div class="j-play">
+      <button class="btn" type="button" id="j-play">Play</button>
+      <label class="opt"><input type="checkbox" id="j-share"><span>If I finish top 3, Fleet Zero may post my name on LinkedIn.</span></label>
+      <p class="fine">Your name shows on the big screen during this event. Event names are removed after 30 days.</p>
+    </div>
+  </section>
+
+  <section class="scr" id="s-drive" hidden>
+    <div class="c-row"><span class="dot" id="d-conn">Connected</span><span id="d-round">Round 1</span></div>
+    <div>
+      <div id="d-name">—</div>
+      <div class="c-sub" id="d-sub">Driver</div>
+    </div>
+    <div class="c-stats">
+      <div><span class="c-lbl">Hull</span><div class="hull" id="d-hull"><span></span><span></span><span></span></div></div>
+      <div style="text-align:right"><span class="c-lbl">Your score</span><span class="led" id="d-score">0</span></div>
+    </div>
+    <div class="strip" id="strip" role="slider" tabindex="0" aria-label="Steer your bus" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+      <div class="rail"></div><div class="anchor"></div><div class="knob"></div>
+      <span class="hint">Drag left or right</span>
+    </div>
+    <div class="c-row"><span class="chip">Auto-fire on</span><span class="chip" id="d-left">--:--</span></div>
+    <div class="cover" id="d-wreck" hidden><b id="d-wreck-n">3</b><span>Your bus is back in a moment,<br>with a shield.</span></div>
+    <div class="cover" id="d-wait" hidden><h2 id="d-wait-h">Get ready</h2><span id="d-wait-s">Drag to find your bus</span></div>
+  </section>
+
+  <section class="scr" id="s-line" hidden>
+    <h1>Mission Control</h1>
+    <p id="l-status">You're in line for a bus.</p>
+    <button type="button" class="tap" id="tap" aria-label="Tap to charge the fleet shield">
+      <span><b>Tap</b><small>Charge the fleet shield</small><em id="tap-pct">0%</em></span>
+    </button>
+    <div class="l-info">
+      <div><span>Fleet score</span><b class="led" id="l-fleet">0</b></div>
+      <div><span id="l-phase">Round</span><b class="led" id="l-left">--:--</b></div>
+    </div>
+    <div class="foot"><button type="button" class="link" id="l-leave">Leave the game</button></div>
+  </section>
+
+  <section class="scr" id="s-bench" hidden>
+    <h1>Still there?</h1>
+    <p>Your bus parked after 30 seconds without steering, so someone else can drive.</p>
+    <button class="btn" type="button" id="b-line">Get back in line</button>
+    <button type="button" class="link" id="b-leave">Leave the game</button>
+  </section>
+
+  <section class="scr" id="s-bye" hidden>
+    <span class="mark" aria-hidden="true"></span>
+    <h1 id="bye-h">Thanks for playing</h1>
+    <p id="bye-p">See you on the leaderboard.</p>
+    <button class="ghost" type="button" id="bye-again" hidden>Enter a code</button>
+  </section>
+
+  <div id="card" hidden role="status"></div>
+</div>
+<script src="/live/config.js"></script>
+<script src="/live/net.js"></script>
+<script src="/live/phone.js"></script>
+</body>
+</html>

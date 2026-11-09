@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050705">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Fleet Invaders Live host</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=Doto:wght@900&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#050705; --panel:#0D120C; --panel-2:#161D14; --ink:#F3F7EC; --mute:#AEB8A6; --faint:#859079;
+  --line:rgba(243,247,236,.11); --line-2:rgba(243,247,236,.22);
+  --lime:#B8FF38; --lime-ink:#0B1400; --hazard:#FF8A1F; --bad:#FF7A6E;
+  --display:"Barlow Condensed","Arial Narrow","Segoe UI",system-ui,sans-serif;
+  --ui:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+  --led:"Doto","Courier New",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 var(--ui);-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+body{padding:calc(env(safe-area-inset-top,0px) + 18px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 28px) max(16px,env(safe-area-inset-left,0px));max-width:620px;margin:0 auto}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.led{font-family:var(--led);font-weight:900;font-variant-numeric:tabular-nums}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+h1{font:800 34px/1 var(--display);text-transform:uppercase;margin:0}
+h1 b{color:var(--lime)}
+#code{font-size:26px;color:var(--lime)}
+#status{display:flex;align-items:center;gap:8px;margin-top:6px;font:600 14px/1.3 var(--ui);color:var(--mute)}
+#status::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--bad)}
+#status.on::before{background:var(--lime)}
+.nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}
+.nums div{padding:12px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line);min-width:0}
+.nums span{display:block;font:700 11px/1 var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+.nums .led{font-size:24px}
+.ctl{display:grid;gap:10px}
+.sw{display:flex;justify-content:space-between;align-items:center;width:100%;padding:14px 16px;border-radius:14px;background:var(--panel-2);font:600 16px/1.2 var(--ui);text-align:left}
+.sw i{flex:none;width:46px;height:28px;border-radius:99px;background:var(--line-2);position:relative;transition:background .2s}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--ink);transition:transform .2s}
+.sw[aria-pressed="true"] i{background:var(--lime)}
+.sw[aria-pressed="true"] i::after{transform:translateX(18px);background:var(--lime-ink)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{padding:15px 0;border-radius:999px;background:var(--lime);color:var(--lime-ink);font:800 19px/1 var(--display);letter-spacing:.05em;text-transform:uppercase}
+.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line-2)}
+h2{font:700 15px/1 var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:28px 0 10px;display:flex;justify-content:space-between}
+ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+li{display:grid;grid-template-columns:12px minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:12px 12px 12px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+li>i{width:12px;height:12px;border-radius:50%;background:var(--c)}
+li .nm{display:grid;gap:3px;min-width:0}
+li .nm b{font:700 19px/1.05 var(--display);text-transform:uppercase;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+li .nm span{font:500 13px/1.2 var(--ui);color:var(--mute)}
+li.hid .nm b{color:var(--faint)}
+li button{padding:10px 12px;border-radius:10px;border:1px solid var(--line-2);font:600 13px/1 var(--ui)}
+li button.armed{background:var(--bad);border-color:var(--bad);color:#1A0500}
+.empty{color:var(--faint);font-size:14px;padding:8px 2px}
+.note{margin-top:28px;font-size:13px;color:var(--faint)}
+#gate{display:grid;gap:12px;margin-top:40vh;text-align:center;color:var(--mute)}
+</style>
+</head>
+<body>
+<div id="gate" hidden><h1>Host <b>panel</b></h1><p id="gate-msg">Open this page by scanning the host QR code on the big screen.</p></div>
+<div id="panel" hidden>
+  <header>
+    <div><h1>Host <b>panel</b></h1><div id="status">Connecting…</div></div>
+    <span class="led" id="code">----</span>
+  </header>
+  <div class="nums">
+    <div><span>Drivers</span><b class="led" id="n-drive">0</b></div>
+    <div><span>Waiting</span><b class="led" id="n-mc">0</b></div>
+    <div><span id="n-phase">Round</span><b class="led" id="n-left">--:--</b></div>
+  </div>
+  <div class="ctl">
+    <button type="button" class="sw" id="lock" aria-pressed="false">Lock new joins<i></i></button>
+    <div class="row">
+      <button type="button" class="btn" id="start">Start round</button>
+      <button type="button" class="btn alt" id="end">End round</button>
+    </div>
+  </div>
+  <h2><span>Driving</span><span id="c-drive"></span></h2>
+  <ul id="l-drive"></ul>
+  <h2><span>Mission Control</span><span id="c-mc"></span></h2>
+  <ul id="l-mc"></ul>
+  <h2><span>Away or parked</span><span id="c-away"></span></h2>
+  <ul id="l-away"></ul>
+  <p class="note">Keep this page to yourself: anyone with its link can run the room. Hidden names show as DRIVER and a number on every screen.</p>
+</div>
+<script src="/live/config.js"></script>
+<script src="/live/net.js"></script>
+<script src="/live/host.js"></script>
+</body>
+</html>

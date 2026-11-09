@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Fleet Invaders Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=Doto:wght@900&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#000; --panel:#0D120C; --panel-2:#161D14; --ink:#F3F7EC; --mute:#AEB8A6; --faint:#859079;
+  --line:rgba(243,247,236,.11); --line-2:rgba(243,247,236,.22);
+  --lime:#B8FF38; --lime-ink:#0B1400; --hazard:#FF8A1F; --bad:#FF7A6E;
+  --display:"Barlow Condensed","Arial Narrow","Segoe UI",system-ui,sans-serif;
+  --ui:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+  --led:"Doto","Courier New",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 var(--ui);overflow:hidden;-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+#stage{position:absolute;left:50%;top:50%;width:min(100vw,177.78vh);aspect-ratio:16/9;transform:translate(-50%,-50%);container-type:inline-size;overflow:hidden;background:#060906}
+#game{position:absolute;inset:0;width:100%;height:100%;display:block}
+.over{position:absolute;inset:0;display:grid;place-items:center;background:rgba(5,7,5,.9);z-index:5}
+.card{width:min(560px,46cqw);display:grid;gap:14px;padding:32px;border-radius:20px;background:var(--panel);border:1px solid var(--line-2)}
+.card h1{font:800 44px/.95 var(--display);text-transform:uppercase;margin:0}
+.card h1 b{color:var(--lime)}
+.card p{margin:0;color:var(--mute)}
+.card label{display:grid;gap:6px;font:600 13px/1 var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.card input,.card select{font:600 18px/1 var(--ui);padding:14px;border-radius:12px;border:1px solid var(--line-2);background:var(--panel-2);text-transform:none;letter-spacing:0}
+.btn{border:0;cursor:pointer;font:800 22px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;padding:16px;border-radius:999px;background:var(--lime);color:var(--lime-ink)}
+.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line-2)}
+.err{color:var(--bad);font-weight:600;min-height:20px}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+#hostqr .card{width:min(640px,52cqw);grid-template-columns:auto 1fr;align-items:center;gap:28px}
+#hostqr canvas{width:220px;height:220px;background:#F3F7EC;border-radius:14px;padding:12px}
+#hostqr .k{font:600 13px/1.4 var(--ui);color:var(--faint);word-break:break-all}
+#conn{position:absolute;left:1.4cqw;bottom:1.4cqw;z-index:6;padding:.7cqw 1.1cqw;border-radius:.8cqw;background:var(--bad);color:#1A0500;font:700 1.1cqw/1 var(--ui)}
+
+/* fleet portrait */
+#results{position:absolute;inset:0;z-index:4;background:radial-gradient(80% 90% at 30% 20%,#14200F,#060906 70%);animation:in .5s ease-out}
+@keyframes in{from{opacity:0}}
+.res{position:absolute;inset:0;display:grid;grid-template-rows:auto 1fr auto;gap:2.2cqw;padding:3.2cqw 3.6cqw}
+.res-head{display:flex;justify-content:space-between;align-items:center;font:700 1.45cqw/1 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.res-head b{color:var(--lime)}
+.res-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:4cqw;min-height:0}
+.res-lbl{font:700 1.2cqw/1 var(--ui);letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+.res-score .led{display:block;font:900 8.4cqw/1 var(--led);font-variant-numeric:tabular-nums;margin:.8cqw 0 1.2cqw}
+.rec{display:inline-block;font:700 1.25cqw/1 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--lime-ink);background:var(--lime);padding:.8cqw 1.1cqw;border-radius:.6cqw}
+.podium{list-style:none;margin:2.6cqw 0 0;padding:0;display:grid;gap:.9cqw}
+.podium li{display:grid;grid-template-columns:3.4cqw 1fr auto;align-items:center;gap:1.4cqw;padding:1cqw 1.4cqw;border-radius:1cqw;background:color-mix(in srgb,var(--c) 14%,transparent);border-left:.5cqw solid var(--c)}
+.podium b{font:900 2.4cqw/1 var(--led);color:var(--c)}
+.podium span{font:700 2.4cqw/1 var(--display);text-transform:uppercase;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.podium em{font:900 2cqw/1 var(--led);font-style:normal;font-variant-numeric:tabular-nums}
+.badges{display:grid;grid-template-columns:1fr 1fr;gap:1.4cqw;align-content:start}
+.badge{display:grid;gap:.7cqw;padding:1.6cqw;border-radius:1.2cqw;background:rgba(243,247,236,.04);border:1px solid var(--line)}
+.badge .t{font:700 1.15cqw/1 var(--ui);letter-spacing:.16em;text-transform:uppercase;color:var(--hazard)}
+.badge .n{font:800 2.5cqw/1 var(--display);text-transform:uppercase;color:var(--c);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge .d{font:500 1.25cqw/1.2 var(--ui);color:var(--mute)}
+.wall{display:flex;flex-wrap:wrap;gap:.7cqw;align-items:center}
+.wall .res-lbl{margin-right:.8cqw}
+.wall span{font:700 1.3cqw/1 var(--display);text-transform:uppercase;letter-spacing:.04em;padding:.55cqw .9cqw;border-radius:99px;background:var(--c);color:var(--ci,#140F00)}
+.wall .mcount{margin-left:auto;background:none;color:var(--mute);font:600 1.25cqw/1 var(--ui);letter-spacing:.04em;text-transform:none;padding:0}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game" aria-label="Fleet Invaders Live big screen"></canvas>
+
+  <div class="over" id="setup">
+    <form class="card" id="setup-form" autocomplete="off">
+      <h1>Fleet Invaders <b>Live</b></h1>
+      <p>Set up the big screen for an event. Players join from their phones with the code shown on screen.</p>
+      <div id="resume" hidden class="row">
+        <button class="btn" type="button" id="resume-go">Resume event</button>
+      </div>
+      <label>Event key<input type="password" id="key" placeholder="From whoever set up the relay"></label>
+      <label>Buses on screen
+        <select id="seats">
+          <option value="8">8</option><option value="12">12</option><option value="16" selected>16</option>
+          <option value="24">24</option><option value="32">32</option>
+        </select>
+      </label>
+      <p class="err" id="setup-err" role="alert"></p>
+      <button class="btn" type="submit" id="setup-go">Start a new event</button>
+    </form>
+  </div>
+
+  <div class="over" id="hostqr" hidden>
+    <div class="card">
+      <canvas id="hostqr-c" width="220" height="220" aria-label="Host panel QR code"></canvas>
+      <div style="display:grid;gap:12px">
+        <h1>Host panel</h1>
+        <p>Scan this with the phone of whoever runs the booth. It can hide names, remove players and lock the room.</p>
+        <p class="k" id="hostqr-url"></p>
+        <button class="btn" type="button" id="hostqr-close">Show the game</button>
+        <p class="k">Press H any time to show this again. Keep it off the screen while players are around.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="results" hidden></div>
+  <div id="conn" hidden>Reconnecting to the relay…</div>
+</div>
+<script src="/live/config.js"></script>
+<script src="/live/net.js"></script>
+<script src="/live/names.js"></script>
+<script src="/live/room.js"></script>
+<script src="/live/qrcode.js"></script>
+<script src="/live/screen.js"></script>
+</body>
+</html>
