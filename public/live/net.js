@@ -214,7 +214,9 @@
     this.watch = setInterval(function () {
       var quiet = Date.now() - self.lastMsg;
       if (quiet > 7000) self.restart();
-      else if (quiet > 3500) self.sendRaw('ping');
+      // Ping when nothing came in for a while, and also when this page has
+      // sent nothing for 10 s, so the switchboard knows it is still here.
+      else if (quiet > 3500 || Date.now() - (self.lastSent || 0) > 10000) self.sendRaw('ping');
     }, 1000);
   };
 
@@ -253,6 +255,7 @@
   Link.prototype.sendRaw = function (data) {
     if (this.ws && this.ws.readyState === 1) {
       this.ws.send(data);
+      this.lastSent = Date.now();
       return true;
     }
     return false;
