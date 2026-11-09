@@ -27,10 +27,48 @@
     charge: 0, shield: 0, tapLog: [], roundTaps: 0, mcCount: 0, emptyFor: 0,
     toasts: [], parts: [], pops: [], bolts: [], ebolts: [], banner: null,
     form: { t: 0, oy: -260 }, inv: [], drone: null, droneT: 12, eft: 1,
-    qr: null, stars: [],
+    qr: null, stars: [], padsOn: true, slotPid: new Array(8).fill(null),
   };
   let link = null;
   const outbox = [];
+
+  // ------------------------------------------------------------ joysticks
+
+  // Joysticks plugged into this computer drive buses too; see pads.js.
+  const pads = new window.FleetPads({
+    canJoin: () => G.padsOn && !!link && link.ready && !link.stopped,
+    onJoin: slot => {
+      const id = link.addLocal(slot);
+      if (id === null) { pads.release(slot); return; }
+      G.slotPid[slot] = id;
+      pads.rumble(slot, 180, 0.7);
+    },
+    onInput: (slot, x, active) => {
+      const bus = G.buses.get(G.slotPid[slot]);
+      if (!bus) return;
+      bus.input = x;
+      if (active) { bus.lastInput = now(); bus.benchSent = false; }
+    },
+    onGone: slot => {
+      const id = G.slotPid[slot];
+      G.slotPid[slot] = null;
+      if (id !== null && link) link.removeLocal(id);
+    },
+  });
+  let padCount = 0;
+  function pollPads() {
+    pads.poll(now());
+    const n = Math.max(pads.seen, pads.taken());
+    if (n !== padCount && link) { padCount = n; link.setPads(n); }
+  }
+  // The room says a stick player is gone (idle, unplugged, removed by the host).
+  function freeSlotOf(p) {
+    if (p.local === null || p.local === undefined) return;
+    if (G.slotPid[p.local] === p.id && (p.removed || !G.roster.has(p.id))) {
+      G.slotPid[p.local] = null;
+      pads.release(p.local);
+    }
+  }
 
   // ------------------------------------------------------------ sprites
 
@@ -189,6 +227,10 @@
   // The room (players, seats, line, codes) runs in this page; see room.js.
   function connect() {
     if (link) link.stop();
+    // Stick players start again on a new connection to the room.
+    pads.releaseAll();
+    G.slotPid.fill(null);
+    padCount = -1;
     link = new window.LiveRoom({
       url: () => `${CFG.ws}?room=${G.creds.room}&role=screen&key=${G.creds.host}`,
       room: G.creds.room,
@@ -205,15 +247,25 @@
         G.seats = m.seats;
         G.locked = m.locked;
         setCode(m.code, m.ends);
+        G.padsOn = m.pads !== false;
         G.roster = new Map(m.players.map(p => [p.id, p]));
         for (const id of [...G.buses.keys()]) if (!G.roster.has(id)) removeBus(G.buses.get(id), null);
         for (const p of G.roster.values()) syncBus(p, false);
+        G.slotPid.forEach((id, slot) => {
+          const p = G.roster.get(id);
+          if (id !== null && (!p || p.removed)) { G.slotPid[slot] = null; pads.release(slot); }
+        });
         countMission();
         break;
       case 'p':
         G.roster.set(m.p.id, m.p);
         syncBus(m.p, !!m.join);
+        freeSlotOf(m.p);
         countMission();
+        break;
+      case 'pads':
+        G.padsOn = m.on;
+        toast(m.on ? 'Joysticks can join again' : 'Joysticks are off for now', 'lime');
         break;
       case 'code':
         setCode(m.code, m.ends);
@@ -343,18 +395,23 @@
         if (p.connected) bus.lastInput = now();
       }
     }
-    if (isJoin && !driving) toast(p.name + ' joined Mission Control', p.color);
+    if (isJoin && !driving) {
+      if (isStick(p)) toast('Stick ' + (p.local + 1) + ' gets the next free bus', p.color);
+      else toast(p.name + ' joined Mission Control', p.color);
+    }
   }
+
+  const isStick = p => p.local !== null && p.local !== undefined;
 
   function addBus(p) {
     const t = now();
     const bus = {
       id: p.id, name: p.name, color: p.color, x: spawnX(), vx: 0, input: 0, lastInput: t, benchSent: false,
       hull: 3, shield: 3, spot: 2.6, wrecked: 0, flash: 0, cool: rand(0.2, 0.6), a: 0,
-      connected: p.connected, dirty: true, sentAt: 0, st: statsFor(p),
+      connected: p.connected, dirty: true, sentAt: 0, st: statsFor(p), local: isStick(p) ? p.local : null,
     };
     G.buses.set(p.id, bus);
-    toast(p.name + ' is driving', p.color);
+    toast((bus.local !== null ? 'S' + (bus.local + 1) + ' · ' : '') + p.name + ' is driving', p.color);
     toPlayer(p.id, { t: 'fx', k: 'spawn' });
   }
 
@@ -362,7 +419,8 @@
     burst(bus.x, GROUND - 10, COL[bus.color] || '#B8FF38', 18);
     G.buses.delete(bus.id);
     if (!p) return;
-    if (p.removed) toast(bus.name + ' was removed', 'mute');
+    if (p.removed && bus.local !== null) toast('Stick ' + (bus.local + 1) + ' is free', 'mute');
+    else if (p.removed) toast(bus.name + ' was removed', 'mute');
     else if (p.queued) toast(bus.name + ' moved to Mission Control', p.color);
     else toast(bus.name + "'s bus parked", 'mute');
   }
@@ -558,6 +616,7 @@
   }
 
   function update(dt) {
+    pollPads();
     const t = now();
     G.form.t += dt;
     for (const s of G.stars) { s.y += s.v * dt; if (s.y > H) { s.y = -4; s.x = rand(0, W); } }
@@ -754,6 +813,35 @@
     ctx.textAlign = align || 'left';
     ctx.fillText(t, x, y);
   }
+  // The shape on each joystick's sticker: S1 circle, S2 triangle, S3 square,
+  // S4 diamond, S5 star, S6 cross, S7 hexagon, S8 heart.
+  function shape(slot, x, y, r, color) {
+    const kind = window.FleetPads.SHAPES[slot % 8];
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (kind === 'circle') ctx.arc(x, y, r, 0, Math.PI * 2);
+    else if (kind === 'triangle') { ctx.moveTo(x, y - r * 1.1); ctx.lineTo(x + r * 1.05, y + r * 0.8); ctx.lineTo(x - r * 1.05, y + r * 0.8); }
+    else if (kind === 'square') ctx.rect(x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7);
+    else if (kind === 'diamond') { ctx.moveTo(x, y - r * 1.15); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r * 1.15); ctx.lineTo(x - r, y); }
+    else if (kind === 'star') {
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + i * Math.PI / 5, d = i % 2 ? r * 0.48 : r * 1.15;
+        ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
+      }
+    } else if (kind === 'cross') {
+      const a = r * 0.38;
+      ctx.rect(x - a, y - r, a * 2, r * 2); ctx.rect(x - r, y - a, r * 2, a * 2);
+    } else if (kind === 'hexagon') {
+      for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); }
+    } else {
+      ctx.moveTo(x, y + r);
+      ctx.bezierCurveTo(x - r * 1.6, y - r * 0.2, x - r * 0.6, y - r * 1.4, x, y - r * 0.45);
+      ctx.bezierCurveTo(x + r * 0.6, y - r * 1.4, x + r * 1.6, y - r * 0.2, x, y + r);
+    }
+    ctx.closePath();
+    ctx.fill('nonzero');
+  }
+
   const clock = s => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
   function render() {
@@ -841,11 +929,18 @@
     order.forEach((b, i) => {
       const y = GROUND + 48 + (i % 2) * 28;
       ctx.font = F(700, 17, 'd');
-      const label = b.name.toUpperCase();
-      const w = ctx.measureText(label).width + 18;
+      const stick = b.local !== null && b.local !== undefined;
+      const label = (stick ? 'S' + (b.local + 1) + ' ' : '') + b.name.toUpperCase();
+      const mark = stick ? 20 : 0; // room for the stick's shape
+      const w = ctx.measureText(label).width + 18 + mark;
       ctx.globalAlpha = b.a * (b.connected ? 1 : 0.5);
       ctx.fillStyle = COL[b.color]; rr(b.x - w / 2, y - 13, w, 24, 12); ctx.fill();
-      ctx.fillStyle = INK[b.color]; ctx.textAlign = 'center'; ctx.fillText(label, b.x, y + 5);
+      if (stick) {
+        // Joystick players wear their sticker's shape on a dark badge.
+        ctx.fillStyle = '#0B1400'; ctx.beginPath(); ctx.arc(b.x - w / 2 + 13, y - 1, 9.5, 0, Math.PI * 2); ctx.fill();
+        shape(b.local, b.x - w / 2 + 13, y - 1, 5.5, COL[b.color]);
+      }
+      ctx.fillStyle = INK[b.color]; ctx.textAlign = 'center'; ctx.fillText(label, b.x + mark / 2, y + 5);
       ctx.globalAlpha = 1;
       const idle = now() - b.lastInput;
       let note = null, color = COL[b.color];
@@ -914,7 +1009,26 @@
     text(String(G.mcCount), cx + 120, 430, F(900, 34, 'led'), '#B8FF38');
     ctx.fillStyle = 'rgba(243,247,236,.1)'; ctx.fillRect(cx, 456, cw, 1);
     let ty = 494;
+    // Joystick strip: shown once a joystick has been seen on this computer.
+    const anyStick = G.slotPid.some(id => id !== null);
+    if (G.padsOn && (pads.seen > 0 || anyStick)) {
+      text('JOYSTICKS', cx, 486, F(700, 17, 'd'), '#859079');
+      text('PRESS ANY BUTTON', cx + cw, 486, F(700, 17, 'd'), '#B8FF38', 'right');
+      for (let s = 0; s < 8; s++) {
+        const x = cx + (s % 4) * 63, y = 502 + Math.floor(s / 4) * 62, c = COL[FleetNames.COLORS[s % 7]];
+        const p = G.slotPid[s] !== null ? G.roster.get(G.slotPid[s]) : null;
+        const driving = p && p.seat !== null;
+        rr(x, y, 56, 54, 10);
+        if (p) { ctx.globalAlpha = driving ? 1 : 0.45; ctx.fillStyle = c; ctx.fill(); ctx.globalAlpha = 1; }
+        else { ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(243,247,236,.28)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
+        shape(s, x + 28, y + 20, 8, p ? '#0B1400' : c);
+        text('S' + (s + 1), x + 28, y + 46, F(900, 14, 'led'), p ? '#0B1400' : '#859079', 'center');
+      }
+      ctx.fillStyle = 'rgba(243,247,236,.1)'; ctx.fillRect(cx, 632, cw, 1);
+      ty = 668;
+    }
     for (const tt of G.toasts) {
+      if (ty > H - 16) break;
       ctx.globalAlpha = tt.t < 0.3 ? tt.t / 0.3 : tt.t > 7 ? Math.max(0, (9 - tt.t) / 2) : 1;
       const c = tt.color === 'lime' ? '#B8FF38' : tt.color === 'mute' ? '#859079' : COL[tt.color] || '#AEB8A6';
       ctx.fillStyle = c; ctx.beginPath(); ctx.arc(cx + 6, ty - 6, 5, 0, Math.PI * 2); ctx.fill();
@@ -933,11 +1047,13 @@
     if (G.phase === 'lobby') {
       ctx.fillStyle = 'rgba(5,7,5,.55)'; ctx.fillRect(0, 300, 1310, 300);
       text('SCAN TO DRIVE', cx, 430, F(800, 96, 'd'), '#B8FF38', 'center');
-      text('The first ' + G.seats + ' phones each drive a bus. Everyone after that joins Mission Control.', cx, 486, F(500, 24, 'ui'), '#E3E9DB', 'center');
+      text(G.padsOn && pads.seen > 0
+        ? 'Scan the code with your phone, or press any button on a joystick.'
+        : 'The first ' + G.seats + ' phones each drive a bus. Everyone after that joins Mission Control.', cx, 486, F(500, 24, 'ui'), '#E3E9DB', 'center');
     } else if (G.phase === 'count') {
       text('ROUND ' + G.round + ' STARTS IN', cx, 380, F(800, 40, 'd'), '#F3F7EC', 'center');
       text(String(Math.max(1, Math.ceil(G.t))), cx, 520, F(900, 150, 'led'), '#B8FF38', 'center');
-      text('Find the bus in your colour and drag on your phone to steer', cx, 580, F(500, 22, 'ui'), '#AEB8A6', 'center');
+      text('Find the bus in your colour. Drag on your phone, or push your joystick, to steer', cx, 580, F(500, 22, 'ui'), '#AEB8A6', 'center');
     } else if (G.phase === 'inter') {
       text('NEXT ROUND IN ' + Math.max(1, Math.ceil(G.t)), cx, 450, F(800, 64, 'd'), '#F3F7EC', 'center');
       text('New drivers: find the bus in your colour', cx, 500, F(500, 24, 'ui'), '#AEB8A6', 'center');
@@ -971,5 +1087,5 @@
   });
 
   // For automated tests.
-  window.FleetScreen = { G, startPlay, endRound };
+  window.FleetScreen = { G, startPlay, endRound, pads, room: () => link };
 })();
